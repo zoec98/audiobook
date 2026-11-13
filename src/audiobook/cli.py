@@ -12,7 +12,6 @@ from audiobook._env import load_environment
 from audiobook.contracts import (
     SUPPORTED_SPEECH_MODELS,
     AudiobookError,
-    ConfigurationError,
     InputError,
     RunSettings,
 )
@@ -98,22 +97,12 @@ def discover_chapters(input_dir: Path) -> tuple[Path, ...]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse the command and fail clearly until the workflow is integrated."""
+    """Parse the command and run the audiobook workflow."""
     try:
         settings = parse_settings(argv)
-        discover_chapters(settings.input_dir)
-        if not settings.openai_api_key:
-            raise ConfigurationError(
-                "OPENAI_API_KEY is required; set it in .env or ~/.audiobook.env"
-            )
-        if not settings.dry_run and not settings.elevenlabs_api_key:
-            raise ConfigurationError(
-                "ELEVENLABS_API_KEY is required for audio generation; "
-                "set it in .env or ~/.audiobook.env"
-            )
-        raise ConfigurationError(
-            "The processing workflow is not yet available in this build."
-        )
+        from audiobook.application import run
+
+        return run(settings)
     except AudiobookError as error:
         print(f"audiobook: error: {error}", file=sys.stderr)
         return 1

@@ -186,7 +186,7 @@ def test_main_requires_elevenlabs_for_audio_generation(
     assert "ELEVENLABS_API_KEY is required" in capsys.readouterr().err
 
 
-def test_main_does_not_report_an_unwired_processing_run_as_success(
+def test_main_reports_empty_narration_as_actionable_language_error(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -198,7 +198,9 @@ def test_main_does_not_report_an_unwired_processing_run_as_success(
     exit_code = main([])
 
     assert exit_code == 1
-    assert "workflow is not yet available" in capsys.readouterr().err
+    error = capsys.readouterr().err
+    assert "Could not detect a language" in error
+    assert "--language" in error
 
 
 def test_help_lists_all_approved_options(tmp_path: Path, monkeypatch, capsys) -> None:
