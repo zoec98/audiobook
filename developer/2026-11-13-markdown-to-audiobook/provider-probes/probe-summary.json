@@ -1,0 +1,22 @@
+{
+  "account_checks": {
+    "openai_model_status": 200,
+    "openai_model_id": "gpt-6-luna",
+    "elevenlabs_models_status": 200,
+    "observed_model_ids": [
+      "eleven_v4",
+      "eleven_v4_turbo"
+    ],
+    "dahlia_voice_status": 200,
+    "dahlia_matches": 1
+  },
+  "fixture_characters_per_model": 113,
+  "turbo_status": "final_signal_received",
+  "turbo_stream_complete": true,
+  "turbo_pcm_bytes": 376320,
+  "v4_status": "complete_response",
+  "v4_response_complete": true,
+  "v4_pcm_bytes": 384000,
+  "total_published_narration_value_usd": 0.01356,
+  "probe_limit_usd": 0.12
+}

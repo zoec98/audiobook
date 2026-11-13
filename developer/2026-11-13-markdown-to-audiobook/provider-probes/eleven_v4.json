@@ -1,0 +1,23 @@
+{
+  "model_id": "eleven_v4",
+  "transport": "Create speech REST",
+  "output_format": "pcm_24000",
+  "voice_id": "JaagUurP1dmW3WscoJ79",
+  "language_code": "en",
+  "text": "At dawn, Mara crossed the quiet garden. Dew brightened the leaves, and a small bird sang from the old stone wall.",
+  "submitted_characters": 113,
+  "published_rate_usd_per_1000_characters": 0.08,
+  "published_narration_value_usd": 0.00904,
+  "attempted_once": true,
+  "response_headers_allowlist": {
+    "content-type": "audio/pcm",
+    "content-length": "384000"
+  },
+  "http_status": 200,
+  "response_complete": true,
+  "raw_pcm_bytes": 384000,
+  "raw_sha256": "f3d3a9e2a8f09e6ace0c8bfc05b135a574cdb50cb533fe993b440c9d5f913d7e",
+  "riff_header_present": false,
+  "wav_written_from_documented_pcm_contract": true,
+  "status": "complete_response"
+}
