@@ -67,6 +67,52 @@ def test_default_voice_is_resolved_across_account_pages() -> None:
     assert voice_id == DEFAULT_DAHLIA_ID
 
 
+def test_voice_lookup_retries_a_timed_out_safe_get() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.ConnectTimeout("connect timeout", request=request)
+        return httpx.Response(
+            200,
+            json={
+                "voices": [_voice("Studio Narrator", "voice-studio", ["eleven_v4"])],
+                "has_more": False,
+                "next_page_token": None,
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        voice_id = resolve_voice(
+            "Studio Narrator", "test-key", model_id="eleven_v4", client=client
+        )
+
+    assert voice_id == "voice-studio"
+    assert len(requests) == 2
+    for request in requests:
+        timeout = request.extensions["timeout"]
+        assert timeout["connect"] == 10.0
+        assert timeout["read"] == 10.0
+
+
+def test_voice_lookup_stops_after_three_transient_responses() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(503)
+
+    with (
+        httpx.Client(transport=httpx.MockTransport(respond)) as client,
+        pytest.raises(ProviderError, match="voice lookup failed.*HTTP 503"),
+    ):
+        resolve_voice(None, "test-key", client=client)
+
+    assert len(requests) == 3
+    assert all(request.extensions["timeout"]["read"] == 10.0 for request in requests)
+
+
 def test_exact_voice_name_resolves_to_its_account_id() -> None:
     def respond(request: httpx.Request) -> httpx.Response:
         assert request.url.params["include_live_moderated"] == "false"
@@ -272,7 +318,7 @@ def test_standard_v4_rejects_lossy_or_unknown_response_format() -> None:
 
     with (
         httpx.Client(transport=httpx.MockTransport(respond)) as client,
-        pytest.raises(ProviderError, match="expected audio/pcm"),
+        pytest.raises(UncertainOperationError, match="outcome is uncertain"),
     ):
         synthesize_chunk(
             "The wind crossed the quiet meadow.",
@@ -294,7 +340,7 @@ def test_standard_v4_rejects_wav_container_when_pcm_was_requested() -> None:
 
     with (
         httpx.Client(transport=httpx.MockTransport(respond)) as client,
-        pytest.raises(ProviderError, match="empty or containerized"),
+        pytest.raises(UncertainOperationError, match="outcome is uncertain"),
     ):
         synthesize_chunk(
             "The wind crossed the quiet meadow.",
@@ -405,7 +451,7 @@ def test_turbo_rejects_malformed_base64_audio_frame() -> None:
     thread.start()
     port = server.socket.getsockname()[1]
     try:
-        with pytest.raises(ProviderError, match="malformed audio data"):
+        with pytest.raises(UncertainOperationError, match="outcome is uncertain"):
             synthesize_chunk(
                 "A short passage for one provider response.",
                 "voice-turbo",

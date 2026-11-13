@@ -34,6 +34,8 @@ PCM_24000_FORMAT = AudioFormat(
     channels=1,
     encoding="pcm_s16le",
 )
+_VOICE_LOOKUP_ATTEMPTS = 3
+_VOICE_LOOKUP_TIMEOUT_SECONDS = 10.0
 
 
 def resolve_voice(
@@ -106,22 +108,38 @@ def _load_account_voices(client: httpx.Client, api_key: str) -> list[Mapping[str
         }
         if page_token is not None:
             params["next_page_token"] = page_token
-        try:
-            response = client.get(VOICE_LIST_URL, params=params, headers=headers)
-            response.raise_for_status()
-            payload = response.json()
-        except httpx.HTTPStatusError as error:
-            status = error.response.status_code
-            status_text = f" (HTTP {status})" if status is not None else ""
-            raise ProviderError(
-                f"ElevenLabs voice lookup failed{status_text}"
-            ) from error
-        except httpx.HTTPError as error:
-            raise ProviderError("ElevenLabs voice lookup failed") from error
-        except ValueError as error:
-            raise ProviderError(
-                "ElevenLabs voice lookup returned invalid JSON"
-            ) from error
+        payload: Any
+        for attempt in range(_VOICE_LOOKUP_ATTEMPTS):
+            try:
+                response = client.get(
+                    VOICE_LIST_URL,
+                    params=params,
+                    headers=headers,
+                    timeout=_VOICE_LOOKUP_TIMEOUT_SECONDS,
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except httpx.HTTPStatusError as error:
+                status = error.response.status_code
+                if (
+                    status == 429 or status >= 500
+                ) and attempt + 1 < _VOICE_LOOKUP_ATTEMPTS:
+                    continue
+                status_text = f" (HTTP {status})" if status is not None else ""
+                raise ProviderError(
+                    f"ElevenLabs voice lookup failed{status_text}"
+                ) from error
+            except httpx.RequestError as error:
+                if attempt + 1 < _VOICE_LOOKUP_ATTEMPTS:
+                    continue
+                raise ProviderError("ElevenLabs voice lookup failed") from error
+            except httpx.HTTPError as error:
+                raise ProviderError("ElevenLabs voice lookup failed") from error
+            except ValueError as error:
+                raise ProviderError(
+                    "ElevenLabs voice lookup returned invalid JSON"
+                ) from error
+            break
 
         if not isinstance(payload, Mapping):
             raise ProviderError("ElevenLabs voice lookup returned an invalid response")
@@ -190,11 +208,15 @@ def synthesize_chunk(
 
     content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
     if content_type != "audio/pcm":
-        raise ProviderError(
-            "ElevenLabs v4 returned an unexpected audio format; expected audio/pcm"
+        raise UncertainOperationError(
+            "ElevenLabs v4 completed with an unexpected audio format; the paid "
+            "request outcome is uncertain, so do not retry it blindly"
         )
     if not response.content or response.content.startswith(b"RIFF"):
-        raise ProviderError("ElevenLabs v4 returned empty or containerized audio")
+        raise UncertainOperationError(
+            "ElevenLabs v4 completed without usable native PCM; the paid request "
+            "outcome is uncertain, so do not retry it blindly"
+        )
     return RawAudio(pcm=response.content, format=PCM_24000_FORMAT)
 
 
@@ -277,12 +299,14 @@ def _synthesize_turbo(
                 try:
                     payload = json.loads(frame)
                 except (TypeError, json.JSONDecodeError) as error:
-                    raise ProviderError(
-                        "ElevenLabs Turbo returned a malformed WebSocket message"
+                    raise UncertainOperationError(
+                        "ElevenLabs Turbo returned a malformed message after "
+                        "submission; the paid request outcome is uncertain"
                     ) from error
                 if not isinstance(payload, Mapping):
-                    raise ProviderError(
-                        "ElevenLabs Turbo returned a malformed WebSocket message"
+                    raise UncertainOperationError(
+                        "ElevenLabs Turbo returned a malformed message after "
+                        "submission; the paid request outcome is uncertain"
                     )
                 if "error" in payload:
                     raise ProviderError(
@@ -291,18 +315,21 @@ def _synthesize_turbo(
                 encoded_audio = payload.get("audio")
                 if encoded_audio is not None:
                     if not isinstance(encoded_audio, str):
-                        raise ProviderError(
-                            "ElevenLabs Turbo returned malformed audio data"
+                        raise UncertainOperationError(
+                            "ElevenLabs Turbo returned malformed audio after "
+                            "submission; the paid request outcome is uncertain"
                         )
                     try:
                         audio_part = base64.b64decode(encoded_audio, validate=True)
                     except (binascii.Error, ValueError) as error:
-                        raise ProviderError(
-                            "ElevenLabs Turbo returned malformed audio data"
+                        raise UncertainOperationError(
+                            "ElevenLabs Turbo returned malformed audio after "
+                            "submission; the paid request outcome is uncertain"
                         ) from error
                     if not audio_part:
-                        raise ProviderError(
-                            "ElevenLabs Turbo returned an empty audio frame"
+                        raise UncertainOperationError(
+                            "ElevenLabs Turbo returned an empty audio frame after "
+                            "submission; the paid request outcome is uncertain"
                         )
                     audio_parts.append(audio_part)
 
