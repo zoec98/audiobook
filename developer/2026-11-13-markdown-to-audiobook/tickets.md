@@ -3,7 +3,8 @@
 ## Status and scope
 
 - Epic: `markdown-to-audiobook`.
-- Status: approved implementation in progress on 2026-11-13.
+- Status: implementation and code review complete; manual audio listening is
+  pending (2026-11-13).
 - Approval: the owner said, "Approved. I'll start implementation separately."
   Approval includes the dependency plan, public test seams, and verification
   requirements used by this implementation session.
@@ -591,7 +592,7 @@ commit, and merged-result verification as work proceeds.
 | T-10 | merged | `18cf61d75091bad461368611f88c92c8224277e1` | `7eb665650127b0f8e134953120849c2c033be4e7` | Merged shared gates pass; pytest: 109; no live provider calls |
 | T-11 | merged | `c219ba4c8c804bdcd23fbe51694e07996eaebeae` | `90558990174878bfaf2074b8f921bd60c2361a97` | Merged shared gates pass; pytest: 118; paid synthesis remains single-attempt |
 | T-12 | merged | `b23698805b2f2af75b3793a45e07c8bac0a06163` | `8f8f7c3e2f6355a97eba7ca454178fac25dbaf21` | Fresh offline `uv sync`; CLI help; merged gates pass; pytest: 120; listening pending |
-| T-13 | waiting for prerequisites | — | — | — |
+| T-13 | merged | `1c8efe28b6de3fd580553caa1cfff68c2de79d8a` | `297d9a716e5440f9b483385562a19d13fb070d31` | Two-axis review: 0 hard standards violations; 1 judgement-call smell deferred; 1 spec gap fixed; final gates pass (121 tests); listening pending |
 | T-14 | merged | `b303ae4eaebe4de016cbe912aafc8e5a652f5aff` | `70c93f343eef7c8fc10fa3bbf144de3c77cfb2e1` | Merged shared gates pass; pytest: 120; 12 user chapters checked offline (53 breaks, no rule diagnostics/projection); no provider calls |
 
 ## Notes
