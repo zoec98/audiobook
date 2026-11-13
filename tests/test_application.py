@@ -529,6 +529,37 @@ def test_all_sources_are_validated_before_any_provider_request(
     assert invalid.read_text(encoding="utf-8") == "The second chapter has [risas].\n"
 
 
+def test_source_diagnostic_shows_the_offending_line_and_caret(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    (input_dir / "1-offending.md").write_text(
+        "A sentence.\n> This block is unsupported.\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        raise AssertionError("provider calls must follow source validation")
+
+    _install_provider_transport(monkeypatch, respond)
+
+    exit_code = main(["--input-dir", str(input_dir), "--language", "en"])
+
+    assert exit_code == 1
+    error = capsys.readouterr().err
+    assert (
+        "1-offending.md:2:1: error: unsupported block Markdown is retained in forced narration\n"
+        "  2 | > This block is unsupported.\n"
+        "    | ^\n"
+    ) in error
+    assert requests == []
+
+
 def test_force_reports_source_diagnostics_and_keeps_questionable_prose(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -563,6 +594,7 @@ def test_force_reports_source_diagnostics_and_keeps_questionable_prose(
     assert exit_code == 0
     report = capsys.readouterr()
     assert "1-forced.md:1:8" in report.err
+    assert f"  1 | He saw [risas] near the door.\n    | {' ' * 7}^\n" in report.err
     assert annotation_inputs == [original]
     assert source.read_text(encoding="utf-8") == original
 

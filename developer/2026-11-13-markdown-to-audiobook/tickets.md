@@ -592,7 +592,7 @@ commit, and merged-result verification as work proceeds.
 | T-11 | merged | `c219ba4c8c804bdcd23fbe51694e07996eaebeae` | `90558990174878bfaf2074b8f921bd60c2361a97` | Merged shared gates pass; pytest: 118; paid synthesis remains single-attempt |
 | T-12 | in progress (`codex/markdown-to-audiobook-t-12`) | — | — | — |
 | T-13 | waiting for prerequisites | — | — | — |
-| T-14 | ready | — | — | — |
+| T-14 | merged | `b303ae4eaebe4de016cbe912aafc8e5a652f5aff` | `70c93f343eef7c8fc10fa3bbf144de3c77cfb2e1` | Merged shared gates pass; pytest: 120; 12 user chapters checked offline (53 breaks, no rule diagnostics/projection); no provider calls |
 
 ## Notes
 

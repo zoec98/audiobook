@@ -249,11 +249,26 @@ def _model_capabilities(model_id: str) -> ModelCapabilities:
 
 def _report_diagnostics(chapters: tuple[PreparedChapter, ...]) -> None:
     for chapter in chapters:
+        source_lines = chapter.original_markdown.splitlines()
         for diagnostic in chapter.diagnostics:
             position = diagnostic.position
             print(
                 f"{chapter.source.path.name}:{position.line}:{position.character}: "
                 f"{diagnostic.severity}: {diagnostic.message}",
+                file=sys.stderr,
+            )
+            if not 1 <= position.line <= len(source_lines):
+                continue
+            source_line = source_lines[position.line - 1]
+            caret_offset = max(0, position.character - 1)
+            caret_spaces = len(source_line[:caret_offset].expandtabs(4))
+            line_width = len(str(position.line))
+            print(
+                f"  {position.line:>{line_width}} | {source_line.expandtabs(4)}",
+                file=sys.stderr,
+            )
+            print(
+                f"  {'':>{line_width}} | {' ' * caret_spaces}^",
                 file=sys.stderr,
             )
 
