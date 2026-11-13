@@ -3,7 +3,10 @@
 ## Status and scope
 
 - Epic: `markdown-to-audiobook`.
-- Status: draft awaiting approval of the complete ticket and verification plan.
+- Status: complete ticket and verification plan approved on 2026-11-13.
+- Approval: the owner said, "Approved. I'll start implementation separately."
+  Approval includes the dependency plan, public test seams, and verification
+  requirements. Implementation is deferred to that separate session.
 - Source: [approved user stories](user-stories.md), approved on 2026-11-13.
 - Approval recorded in commit: `d26235a0ec63cacf22838f2f1c9be763286c6e45`.
 - Implementation review baseline: `d26235a0ec63cacf22838f2f1c9be763286c6e45`.
@@ -60,7 +63,7 @@ flowchart LR
   T12 --> T13[T-13 Epic review]
 ```
 
-## Interfaces and test seams for approval
+## Approved interfaces and test seams
 
 Independent tickets need agreed interfaces before separate worktrees implement
 them. T-02 records the final Python types and error contracts in
@@ -525,25 +528,26 @@ seams when a fix warrants them. Do not add tests for review prose.
 
 ## Integration ledger
 
-All entries begin as proposed, not ready to dispatch until whole-plan approval.
+The plan is approved. T-01 and T-02 are ready for the separate implementation
+session; remaining tickets wait for their prerequisites. No ticket has started.
 The coordinator records branch, worktree, ticket commit, merge commit, and
 merged-result verification as work proceeds.
 
 | Ticket | Status | Ticket commit | Merge commit | Verification |
 | --- | --- | --- | --- | --- |
-| T-01 | proposed | — | — | — |
-| T-02 | proposed | — | — | — |
-| T-03 | proposed | — | — | — |
-| T-04 | proposed | — | — | — |
-| T-05 | proposed | — | — | — |
-| T-06 | proposed | — | — | — |
-| T-07 | proposed | — | — | — |
-| T-08 | proposed | — | — | — |
-| T-09 | proposed | — | — | — |
-| T-10 | proposed | — | — | — |
-| T-11 | proposed | — | — | — |
-| T-12 | proposed | — | — | — |
-| T-13 | proposed | — | — | — |
+| T-01 | ready | — | — | — |
+| T-02 | ready | — | — | — |
+| T-03 | waiting for prerequisites | — | — | — |
+| T-04 | waiting for prerequisites | — | — | — |
+| T-05 | waiting for prerequisites | — | — | — |
+| T-06 | waiting for prerequisites | — | — | — |
+| T-07 | waiting for prerequisites | — | — | — |
+| T-08 | waiting for prerequisites | — | — | — |
+| T-09 | waiting for prerequisites | — | — | — |
+| T-10 | waiting for prerequisites | — | — | — |
+| T-11 | waiting for prerequisites | — | — | — |
+| T-12 | waiting for prerequisites | — | — | — |
+| T-13 | waiting for prerequisites | — | — | — |
 
 ## Notes
 
