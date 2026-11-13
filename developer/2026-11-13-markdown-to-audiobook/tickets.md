@@ -541,7 +541,7 @@ merged-result verification as work proceeds.
 | T-03 | merged | `57d511a8465ffaefe831a7c949d7a78ebbb674fe` | `5eba60f0d11ad18ef5de93ae028f27c1470c2ec9` | Merged shared gates pass; pytest: 43 (16 Markdown) |
 | T-04 | ready | — | — | — |
 | T-05 | in progress (`codex/markdown-to-audiobook-t-05`) | — | — | — |
-| T-06 | in progress (`codex/markdown-to-audiobook-t-06`) | — | — | — |
+| T-06 | merged | `87a6fa24885c812684b7d7bbb39510b6a5456c21` | `23ce5b8d93e449aac8a6587c02989b243b4c534c` | Merged shared gates pass; pytest: 66 |
 | T-07 | merged | `edcd3ac65947621d984f523e8d0ef855f9749b14` | `385141d2d995fc5bb848d6099fdffbb2e9929b7e` | Merged shared gates pass; pytest: 59 (15 ElevenLabs, loopback peers) |
 | T-08 | ready | — | — | — |
 | T-09 | merged | `310a975c302fab27460db528f4c2d0ed3feccc7d` | `1afc8298c31fc0e9c7b7c02e3fd34a5b566e01b8` | Merged shared gates pass; pytest: 27 |
