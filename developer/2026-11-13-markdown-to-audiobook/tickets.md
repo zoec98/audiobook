@@ -15,6 +15,11 @@
   fixed so the final review covers the whole implementation.
 - T-01 and T-02 are the initial ready tickets and are being implemented in
   separate worktrees.
+- User-directed scope extension (2026-11-13): add T-14 to show the offending
+  source line and caret in diagnostics and accept thematic breaks as silent
+  Markdown separators. The owner requested both fixes after observing a dry-run
+  against their chapter collection. T-14 must merge before T-12 documentation
+  verification and T-13 review.
 
 ## Dependency map
 
@@ -35,8 +40,9 @@ separate scheduling constraint.
 | T-09 | Persist compatible work and completion records | US-08 | T-02 |
 | T-10 | Deliver the complete command workflow | US-01–US-08 | T-03, T-04, T-05, T-06, T-07, T-08, T-09 |
 | T-11 | Make interrupted and repeated runs safe | US-08 | T-10 |
-| T-12 | Verify the delivered tool and finish user documentation | US-01–US-08 | T-11 |
-| T-13 | Review and resolve the whole epic | US-01–US-08 | T-12 |
+| T-12 | Verify the delivered tool and finish user documentation | US-01–US-08 | T-11, T-14 |
+| T-13 | Review and resolve the whole epic | US-01–US-08 | T-12, T-14 |
+| T-14 | Improve Markdown diagnostics and handle thematic breaks | US-02 | T-03, T-10 |
 
 ```mermaid
 flowchart LR
@@ -60,8 +66,12 @@ flowchart LR
   T08 --> T10
   T09 --> T10
   T10 --> T11[T-11 Recovery]
+  T03 --> T14[T-14 Markdown diagnostics]
+  T10 --> T14
   T11 --> T12[T-12 Delivery verification]
+  T14 --> T12
   T12 --> T13[T-13 Epic review]
+  T14 --> T13
 ```
 
 ## Approved interfaces and test seams
@@ -113,7 +123,9 @@ Suggested initial schedule, subject to available agent slots:
    T-07, and T-08 are ready. Queue ready tickets as slots become available.
 3. After T-03 merges and T-01 is green, T-04 and T-05 are ready. They can run
    alongside remaining independent modules.
-4. Run T-10 through T-13 in prerequisite order.
+4. Run T-10 and T-11 in prerequisite order. T-14 can proceed alongside T-12
+   in its isolated Markdown/application files; T-12 must merge it before final
+   documentation verification. Run T-13 last.
 
 | Shared area | Ownership and conflict rule |
 | --- | --- |
@@ -125,6 +137,10 @@ Suggested initial schedule, subject to available agent slots:
 | Test infrastructure | T-02 establishes minimal common fixtures; subsequent tickets keep fixtures local. Coordinate any shared `conftest.py` edits. |
 | README and final examples | T-12 owns the complete rewrite. Earlier tickets may contribute help text and focused interface documentation. |
 | Ticket ledger and review documents | Coordinator owns this file; T-01 owns `provider-capabilities.md`; T-13 owns `code-review.md`. |
+
+T-14 extends the completed Markdown subset after T-03/T-10: it may update
+`markdown.py`, diagnostic output in `application.py`, and focused tests. T-12
+owns documentation only and must merge T-14 before final verification.
 
 Do not let two workers edit a shared file concurrently simply because their
 functional prerequisites are satisfied. Either serialize that edit or extract
@@ -527,12 +543,39 @@ pass on the integration branch, and each story has acceptance evidence. Run
 existing tests relevant to each fix; add behavior regressions through approved
 seams when a fix warrants them. Do not add tests for review prose.
 
+### T-14 — Improve diagnostics and accept thematic breaks
+
+- **Stories:** US-02; user-directed extension recorded above.
+- **Prerequisites:** T-03, T-10.
+- **Owns:** the final Markdown rule adjustment in `markdown.py`, source excerpts
+  in `application.py` diagnostics, and focused regression tests.
+
+**Acceptance criteria**
+
+- Recognize CommonMark thematic breaks made from three or more `*`, `-`, or `_`
+  markers, with permitted whitespace and indentation, as silent separators.
+  Preserve original Markdown bytes; omit the separator from narration without a
+  source error or stray marker characters, while preserving surrounding speech
+  order and paragraph separation.
+- For user-facing source diagnostics, show the offending source line and a
+  caret at the reported column alongside the existing filename, line, column,
+  severity, and message. Keep forced processing diagnostics while retaining
+  questionable source prose.
+- Do not change paid-provider behavior or the existing source-preservation
+  contract.
+
+**TDD seam and evidence**
+
+`prepare_chapter` fixtures cover `* * *`, `---`, and `___`, literal expected
+narration, no rule diagnostic, and exact source preservation. A public CLI
+fixture with unsupported Markdown captures the filename, source line, and caret
+at the offending character. Apply shared merge gates.
+
 ## Integration ledger
 
-The plan is approved. T-01 and T-02 are ready for the separate implementation
-session; remaining tickets wait for their prerequisites. No ticket has started.
-The coordinator records branch, worktree, ticket commit, merge commit, and
-merged-result verification as work proceeds.
+The original plan is approved; the user-directed T-14 scope extension is
+recorded above. The coordinator records branch, worktree, ticket commit, merge
+commit, and merged-result verification as work proceeds.
 
 | Ticket | Status | Ticket commit | Merge commit | Verification |
 | --- | --- | --- | --- | --- |
@@ -547,8 +590,9 @@ merged-result verification as work proceeds.
 | T-09 | merged | `310a975c302fab27460db528f4c2d0ed3feccc7d` | `1afc8298c31fc0e9c7b7c02e3fd34a5b566e01b8` | Merged shared gates pass; pytest: 27 |
 | T-10 | merged | `18cf61d75091bad461368611f88c92c8224277e1` | `7eb665650127b0f8e134953120849c2c033be4e7` | Merged shared gates pass; pytest: 109; no live provider calls |
 | T-11 | merged | `c219ba4c8c804bdcd23fbe51694e07996eaebeae` | `90558990174878bfaf2074b8f921bd60c2361a97` | Merged shared gates pass; pytest: 118; paid synthesis remains single-attempt |
-| T-12 | waiting for prerequisites | — | — | — |
+| T-12 | in progress (`codex/markdown-to-audiobook-t-12`) | — | — | — |
 | T-13 | waiting for prerequisites | — | — | — |
+| T-14 | ready | — | — | — |
 
 ## Notes
 
