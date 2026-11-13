@@ -9,3 +9,5 @@ dist/
 build/
 .env
 .audiobook.env
+/audiobook_tmp/
+/audiobook/
