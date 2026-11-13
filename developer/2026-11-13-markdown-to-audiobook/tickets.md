@@ -536,14 +536,14 @@ merged-result verification as work proceeds.
 
 | Ticket | Status | Ticket commit | Merge commit | Verification |
 | --- | --- | --- | --- | --- |
-| T-01 | in progress (`codex/markdown-to-audiobook-t-01`) | — | — | — |
+| T-01 | merged | `9a70275c17996b49b80cc622e27fc080994efeb4`, `4cda3aeef2bf68f7b5d12f338df13d241f88ae7b` | `30dcdcfb581dcd17dd4099bf18d4a4e280caa999` | Account lookups 200; two complete PCM probes (113 chars each, $0.01356); JSON/secret-marker and WAV metadata inspection passed; research ticket, no tests |
 | T-02 | merged | `7281ef7cc14a9b6b057b025d795cf22a89ef6ccb` | `e99a5940352ef512763232358cbd23ab483b8f57` | `uv sync`; format/check, pytest (14), ty, and `audiobook --help` pass on merged result |
 | T-03 | in progress (`codex/markdown-to-audiobook-t-03`) | — | — | — |
 | T-04 | waiting for prerequisites | — | — | — |
 | T-05 | waiting for prerequisites | — | — | — |
-| T-06 | waiting for prerequisites | — | — | — |
-| T-07 | waiting for prerequisites | — | — | — |
-| T-08 | waiting for prerequisites | — | — | — |
+| T-06 | ready | — | — | — |
+| T-07 | ready | — | — | — |
+| T-08 | ready | — | — | — |
 | T-09 | in progress (`codex/markdown-to-audiobook-t-09`) | — | — | — |
 | T-10 | waiting for prerequisites | — | — | — |
 | T-11 | waiting for prerequisites | — | — | — |
