@@ -484,22 +484,55 @@ def _render_chapter(
         )
 
     stage = destination.with_name(f".{destination.stem}.{uuid4().hex}.pending.mp3")
+    backup: Path | None = None
+    keep_backup = False
     try:
         result = audio.assemble_chapter(raw_chunks, stage, settings.speed)
         _preserve_wavs(item.store, chapter, result.chunk_wav_paths)
+        if not settings.sample and (destination.exists() or destination.is_symlink()):
+            backup = destination.with_name(
+                f".{destination.name}.{uuid4().hex}.previous"
+            )
+            shutil.copy2(destination, backup, follow_symlinks=False)
         os.replace(stage, destination)
+        if not settings.sample:
+            try:
+                completion = ChapterCompletion(
+                    source=chapter.source,
+                    final_output=final_identity,
+                    mp3_sha256=_file_digest(destination),
+                )
+                item.store.save_completion(final_identity, completion)
+            except Exception as error:
+                try:
+                    if backup is None:
+                        destination.unlink(missing_ok=True)
+                    else:
+                        os.replace(backup, destination)
+                        backup = None
+                except OSError as rollback_error:
+                    keep_backup = backup is not None
+                    backup_note = (
+                        f" Previous MP3 is preserved at {backup}."
+                        if keep_backup
+                        else ""
+                    )
+                    raise AudioError(
+                        f"Could not save completion for {destination.name}: {error}; "
+                        f"rollback also failed: {rollback_error}.{backup_note}"
+                    ) from rollback_error
+                raise AudioError(
+                    f"Could not save completion for {destination.name}: {error}"
+                ) from error
     except OSError as error:
         raise AudioError(f"Could not publish {destination.name}: {error}") from error
     finally:
         stage.unlink(missing_ok=True)
-
-    if not settings.sample:
-        completion = ChapterCompletion(
-            source=chapter.source,
-            final_output=final_identity,
-            mp3_sha256=_file_digest(destination),
-        )
-        item.store.save_completion(final_identity, completion)
+        if backup is not None and not keep_backup:
+            try:
+                backup.unlink(missing_ok=True)
+            except OSError:
+                pass
     print(f"created {destination.name}")
 
 
