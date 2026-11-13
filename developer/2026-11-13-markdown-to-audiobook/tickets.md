@@ -537,7 +537,7 @@ merged-result verification as work proceeds.
 | Ticket | Status | Ticket commit | Merge commit | Verification |
 | --- | --- | --- | --- | --- |
 | T-01 | in progress (`codex/markdown-to-audiobook-t-01`) | — | — | — |
-| T-02 | in progress (`codex/markdown-to-audiobook-t-02`) | — | — | — |
+| T-02 | merged | `7281ef7cc14a9b6b057b025d795cf22a89ef6ccb` | `e99a5940352ef512763232358cbd23ab483b8f57` | `uv sync`; format/check, pytest (14), ty, and `audiobook --help` pass on merged result |
 | T-03 | waiting for prerequisites | — | — | — |
 | T-04 | waiting for prerequisites | — | — | — |
 | T-05 | waiting for prerequisites | — | — | — |
