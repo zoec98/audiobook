@@ -2,6 +2,8 @@
 
 import json
 import tempfile
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +11,7 @@ import httpx
 
 from audiobook.annotation_prompt_v1 import PROMPT, PROMPT_VERSION
 from audiobook.contracts import (
+    VOCAL_DIRECTION_TAGS,
     AnnotatedChapter,
     Insertion,
     InsertionRecord,
@@ -18,21 +21,9 @@ from audiobook.contracts import (
 from audiobook.markdown import prepare_chapter
 
 _RESPONSES_URL = "https://api.openai.com/v1/responses"
-_ALLOWED_TAGS = frozenset(
-    {
-        "[calmly]",
-        "[warmly]",
-        "[softly]",
-        "[firmly]",
-        "[curiously]",
-        "[hesitantly]",
-        "[sadly]",
-        "[brightly]",
-        "[whispering]",
-        "[sighing]",
-    }
-)
-_OUTPUT_SCHEMA = {
+# Structured Outputs permits 1,000 enum values across the entire schema.
+_ANCHORS_PER_REQUEST = 1000 - len(VOCAL_DIRECTION_TAGS)
+_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "insertions": {
@@ -41,7 +32,7 @@ _OUTPUT_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "anchor": {"type": "integer"},
-                    "tag": {"type": "string"},
+                    "tag": {"type": "string", "enum": sorted(VOCAL_DIRECTION_TAGS)},
                 },
                 "required": ["anchor", "tag"],
                 "additionalProperties": False,
@@ -57,36 +48,21 @@ def annotate_chapter(
     prepared_chapter: PreparedChapter, provider: httpx.Client
 ) -> AnnotatedChapter:
     """Request and apply only validated directions at original source anchors."""
-    request_body = {
-        "model": "gpt-6-luna",
-        "reasoning": {"effort": "medium"},
-        "instructions": (
-            f"{PROMPT}\n\nLegal original source offsets: "
-            f"{json.dumps(prepared_chapter.insertion_positions)}"
-        ),
-        "input": prepared_chapter.original_markdown,
-        "text": {
-            "format": {
-                "type": "json_schema",
-                "name": "chapter_insertions",
-                "strict": True,
-                "schema": _OUTPUT_SCHEMA,
-            }
-        },
-    }
-    try:
-        response = provider.post(_RESPONSES_URL, json=request_body)
-        response.raise_for_status()
-        payload = response.json()
-    except (httpx.HTTPError, ValueError) as error:
-        raise ProviderError("OpenAI annotation request failed") from error
-
-    response_id, insertion_values = _read_response(payload)
-    insertions = _validate_insertions(prepared_chapter, insertion_values)
+    insertions: tuple[Insertion, ...] = ()
+    response_id = None
+    positions = prepared_chapter.insertion_positions
+    for start in range(0, len(positions), _ANCHORS_PER_REQUEST):
+        batch = positions[start : start + _ANCHORS_PER_REQUEST]
+        response_id, values = _request_insertions(prepared_chapter, batch, provider)
+        # Check each response against only the anchors offered in that request.
+        insertions += _validate_insertions(
+            replace(prepared_chapter, insertion_positions=batch), values
+        )
     record = InsertionRecord(
         source_sha256=prepared_chapter.source.content_sha256,
         prompt_version=PROMPT_VERSION,
         insertions=insertions,
+        # Batched annotations retain the final response ID for provenance.
         provider_response_id=response_id,
     )
     annotated_markdown = _splice(prepared_chapter.original_markdown, insertions)
@@ -97,6 +73,42 @@ def annotate_chapter(
         narration=annotated_narration,
         insertion_record=record,
     )
+
+
+def _request_insertions(
+    prepared_chapter: PreparedChapter,
+    positions: tuple[int, ...],
+    provider: httpx.Client,
+) -> tuple[str, list[dict[str, Any]]]:
+    schema = deepcopy(_OUTPUT_SCHEMA)
+    schema["properties"]["insertions"]["items"]["properties"]["anchor"] = {
+        "type": "integer",
+        "enum": list(positions),
+    }
+    request_body = {
+        "model": "gpt-6-luna",
+        "reasoning": {"effort": "medium"},
+        "instructions": (
+            f"{PROMPT}\n\nLegal original source offsets: {json.dumps(positions)}"
+        ),
+        "input": prepared_chapter.original_markdown,
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "chapter_insertions",
+                "strict": True,
+                "schema": schema,
+            }
+        },
+    }
+    try:
+        response = provider.post(_RESPONSES_URL, json=request_body)
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as error:
+        raise ProviderError("OpenAI annotation request failed") from error
+
+    return _read_response(payload)
 
 
 def _read_response(payload: Any) -> tuple[str, list[dict[str, Any]]]:
@@ -166,11 +178,18 @@ def _validate_insertions(
         anchor = value["anchor"]
         tag = value["tag"]
         if type(anchor) is not int or anchor not in allowed_positions:
-            raise ProviderError("OpenAI returned an invalid annotation anchor")
+            raise ProviderError(
+                f"OpenAI returned an invalid annotation anchor for {prepared.source.path.name}",
+                debug_details=f"rejected anchor={anchor!r}; "
+                f"{len(allowed_positions)} legal anchors offered"[:300],
+            )
         if anchor <= previous_anchor:
             raise ProviderError("OpenAI annotation anchors are not in source order")
-        if not isinstance(tag, str) or tag not in _ALLOWED_TAGS:
-            raise ProviderError("OpenAI returned a disallowed vocal direction")
+        if not isinstance(tag, str) or tag not in VOCAL_DIRECTION_TAGS:
+            raise ProviderError(
+                "OpenAI returned a disallowed vocal direction",
+                debug_details=f"anchor={anchor}; rejected tag={tag!r}"[:300],
+            )
         previous_anchor = anchor
         insertions.append(
             Insertion(

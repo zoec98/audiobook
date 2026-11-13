@@ -134,6 +134,9 @@ conservative vocal-direction vocabulary, such as `[calmly]`, `[warmly]`,
 `[whispering]`, and `[sighing]`; it excludes editorial changes and
 environmental effects. Valid directions are inserted into a copy of the
 source. Every original character remains in order, including whitespace.
+The response schema restricts both tags and insertion anchors to legal values.
+Chapters with more than 990 legal anchors use multiple annotation requests,
+each with the full chapter as context, to stay within the schema's enum budget.
 
 Speech is split in order at paragraph boundaries, then sentence boundaries,
 within the verified 10,000-character request limit. A direction stays with the

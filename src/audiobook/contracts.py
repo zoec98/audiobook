@@ -6,6 +6,20 @@ from pathlib import Path
 from typing import Literal
 
 SUPPORTED_SPEECH_MODELS = ("eleven_v4_turbo", "eleven_v4")
+VOCAL_DIRECTION_TAGS = frozenset(
+    {
+        "[calmly]",
+        "[warmly]",
+        "[softly]",
+        "[firmly]",
+        "[curiously]",
+        "[hesitantly]",
+        "[sadly]",
+        "[brightly]",
+        "[whispering]",
+        "[sighing]",
+    }
+)
 
 
 class AudiobookError(Exception):

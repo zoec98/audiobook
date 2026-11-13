@@ -6,6 +6,7 @@ import pytest
 
 from audiobook.annotation import annotate_chapter
 from audiobook.contracts import (
+    VOCAL_DIRECTION_TAGS,
     AnnotatedChapter,
     Insertion,
     PreparedChapter,
@@ -112,6 +113,82 @@ def test_annotation_inserts_one_direction_without_changing_source(
     assert output_format["strict"] is True
     assert output_format["schema"]["required"] == ["insertions"]
     assert output_format["schema"]["additionalProperties"] is False
+    tag_schema = output_format["schema"]["properties"]["insertions"]["items"][
+        "properties"
+    ]["tag"]
+    assert tag_schema == {"type": "string", "enum": sorted(VOCAL_DIRECTION_TAGS)}
+    anchor_schema = output_format["schema"]["properties"]["insertions"]["items"][
+        "properties"
+    ]["anchor"]
+    assert anchor_schema == {
+        "type": "integer",
+        "enum": list(prepared.insertion_positions),
+    }
+
+
+def test_large_anchor_lists_are_constrained_in_separate_requests(tmp_path: Path):
+    source = tmp_path / "1-long.md"
+    source.write_text("Mara smiled. " * 1200, encoding="utf-8")
+    prepared = prepare_chapter(source)
+    batches = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        properties = body["text"]["format"]["schema"]["properties"]["insertions"][
+            "items"
+        ]["properties"]
+        anchors = properties["anchor"]["enum"]
+        assert len(anchors) + len(properties["tag"]["enum"]) <= 1000
+        assert body["input"] == prepared.original_markdown
+        batches.append(anchors)
+        return _responses_result(
+            json.dumps({"insertions": [{"anchor": anchors[0], "tag": "[warmly]"}]}),
+            response_id=f"resp-batch-{len(batches)}",
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as provider:
+        annotated = annotate_chapter(prepared, provider)
+    assert len(batches) == 2
+    assert [anchor for batch in batches for anchor in batch] == list(
+        prepared.insertion_positions
+    )
+    assert [item.anchor for item in annotated.insertion_record.insertions] == [
+        batch[0] for batch in batches
+    ]
+    assert annotated.markdown.replace("[warmly] ", "") == prepared.original_markdown
+
+
+def test_invalid_anchor_reports_chapter_and_rejected_value(tmp_path: Path):
+    source = tmp_path / "1-mara.md"
+    source.write_text("Mara smiled.", encoding="utf-8")
+    with pytest.raises(ProviderError, match="invalid annotation anchor") as error:
+        _annotate_response(
+            prepare_chapter(source),
+            _responses_result(
+                json.dumps({"insertions": [{"anchor": 7, "tag": "[warmly]"}]})
+            ),
+        )
+    assert "1-mara.md" in str(error.value)
+    assert "7" in (error.value.debug_details or "")
+
+
+def test_disallowed_direction_includes_bounded_debug_details(tmp_path: Path) -> None:
+    source = tmp_path / "1-mara.md"
+    source.write_text("Mara smiled.", encoding="utf-8")
+    prepared = prepare_chapter(source)
+    tag = "[door slams]\n" + "x" * 2000
+    response = _responses_result(
+        json.dumps({"insertions": [{"anchor": 12, "tag": tag}]})
+    )
+    with pytest.raises(ProviderError, match="disallowed vocal direction") as error:
+        _annotate_response(prepared, response)
+    details = error.value.debug_details
+    assert details is not None
+    assert "[door slams]" in details
+    assert "anchor=12" in details
+    assert "\\n" in details
+    assert "\n" not in details
+    assert len(details) <= 300
 
 
 def test_annotation_uses_unicode_source_offsets_when_text_repeats(
