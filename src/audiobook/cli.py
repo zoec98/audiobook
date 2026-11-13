@@ -29,25 +29,90 @@ def _decimal(value: str) -> Decimal:
     return result
 
 
+class _DefaultsAndExamplesHelpFormatter(
+    argparse.ArgumentDefaultsHelpFormatter,
+    argparse.RawDescriptionHelpFormatter,
+):
+    """Show option defaults while preserving the example command layout."""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="audiobook",
-        description="Turn numbered Markdown chapters into an audiobook.",
+        description=(
+            "Turn numbered Markdown chapters into an audiobook. "
+            "Use --dry-run to prepare annotations and estimates without speech."
+        ),
+        formatter_class=_DefaultsAndExamplesHelpFormatter,
+        epilog=(
+            "Examples:\n\n"
+            "  uv run audiobook --input-dir ./chapters --dry-run\n\n"
+            "  uv run audiobook --input-dir ./chapters --sample\n\n"
+            "  uv run audiobook --input-dir ./chapters --model eleven_v4 --language en\n\n"
+            "  uv run audiobook --input-dir ./chapters --no-cache"
+        ),
     )
-    parser.add_argument("--input-dir", "-i", type=Path, default=Path.cwd())
     parser.add_argument(
-        "--output-dir", "-o", type=Path, default=Path.cwd() / "audiobook"
+        "--input-dir",
+        "-i",
+        type=Path,
+        default=Path.cwd(),
+        help="directory of immediate numbered Markdown chapter files",
     )
-    parser.add_argument("--language", "-l")
-    parser.add_argument("--voice", "-v", default="Dahlia")
     parser.add_argument(
-        "--model", "-m", choices=SUPPORTED_SPEECH_MODELS, default="eleven_v4_turbo"
+        "--output-dir",
+        "-o",
+        type=Path,
+        default=Path.cwd() / "audiobook",
+        help="directory for completed chapter MP3s",
     )
-    parser.add_argument("--speed", "-s", type=_decimal, default=Decimal(1))
-    parser.add_argument("--force", "-f", action="store_true")
-    parser.add_argument("--dry-run", "-n", action="store_true")
-    parser.add_argument("--sample", action="store_true")
-    parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument(
+        "--language",
+        "-l",
+        help="supported language code; detected from prose by default",
+    )
+    parser.add_argument(
+        "--voice",
+        "-v",
+        default="Dahlia",
+        help="exact account voice name or ID",
+    )
+    parser.add_argument(
+        "--model",
+        "-m",
+        choices=SUPPORTED_SPEECH_MODELS,
+        default="eleven_v4_turbo",
+        help="ElevenLabs speech model",
+    )
+    parser.add_argument(
+        "--speed",
+        "-s",
+        type=_decimal,
+        default=Decimal(1),
+        help="pitch-preserving playback tempo; must be finite and positive",
+    )
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="continue after reporting source-validation errors",
+    )
+    parser.add_argument(
+        "--dry-run",
+        "-n",
+        action="store_true",
+        help="save annotations and plans without speech synthesis; Luna usage may apply",
+    )
+    parser.add_argument(
+        "--sample",
+        action="store_true",
+        help="synthesize only the first chunk of the first chapter",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="refresh cached work and regenerate completed chapter outputs",
+    )
     return parser
 
 
