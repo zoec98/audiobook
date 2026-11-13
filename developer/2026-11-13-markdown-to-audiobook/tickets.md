@@ -14,8 +14,9 @@
 - Integration branch: `codex/markdown-to-audiobook`, started at
   `5ff92f81cfa1b64081c90b042888ce38de5fa77f`. The review baseline above remains
   fixed so the final review covers the whole implementation.
-- T-01 and T-02 are the initial ready tickets and are being implemented in
-  separate worktrees.
+- T-01 through T-14 implementation and review outcomes are recorded in the
+  integration ledger below. Successful ticket worktrees and branches are
+  removed after merge.
 - User-directed scope extension (2026-11-13): add T-14 to show the offending
   source line and caret in diagnostics and accept thematic breaks as silent
   Markdown separators. The owner requested both fixes after observing a dry-run
