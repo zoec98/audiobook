@@ -543,7 +543,7 @@ merged-result verification as work proceeds.
 | T-05 | merged | `7169dd80baeb75369737d0522840e5799e668f2a` | `2a58cd1490dfdc8224e8711c96481653ea9e642a` | Merged shared gates pass; pytest: 79; no live provider call |
 | T-06 | merged | `87a6fa24885c812684b7d7bbb39510b6a5456c21` | `23ce5b8d93e449aac8a6587c02989b243b4c534c` | Merged shared gates pass; pytest: 66 |
 | T-07 | merged | `edcd3ac65947621d984f523e8d0ef855f9749b14` | `385141d2d995fc5bb848d6099fdffbb2e9929b7e` | Merged shared gates pass; pytest: 59 (15 ElevenLabs, loopback peers) |
-| T-08 | ready | — | — | — |
+| T-08 | merged | `5cb48a8d39fa3d16158b076a23ec50cdf12d071a` | `6ccfcb82a3dd9e96b749f5fb54ab49daa26068b9` | Merged shared gates pass; pytest: 99; real ffmpeg checks pass |
 | T-09 | merged | `310a975c302fab27460db528f4c2d0ed3feccc7d` | `1afc8298c31fc0e9c7b7c02e3fd34a5b566e01b8` | Merged shared gates pass; pytest: 27 |
 | T-10 | waiting for prerequisites | — | — | — |
 | T-11 | waiting for prerequisites | — | — | — |
