@@ -23,10 +23,11 @@ resumption without repeating completed paid work.
 ## Status and approval
 
 - Epic ID: `markdown-to-audiobook`.
-- Status: complete story draft awaiting whole-set approval.
+- Status: whole story set and proposed test seams approved on 2026-11-13.
 - Basis: the project interview through acceptance of Q21 and Q22 on 2026-11-13.
-- No tickets or implementation are authorized by approval of this draft alone;
-  the specialization workflow requires a separate ticket-plan approval.
+- Approval: the owner said, "Ok, all clear and you can go to ticket generation."
+  The specialization workflow requires separate ticket-plan approval before
+  implementation.
 - No existing glossary or ADRs were found in this repository.
 
 ## Shared behavior
