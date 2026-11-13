@@ -145,7 +145,9 @@ _MODEL_RATES = {
     "eleven_v4_turbo": Decimal("0.04"),
     "eleven_v4": Decimal("0.08"),
 }
-_MODEL_LIMIT = 10_000
+# Conservative narration budget verified with the dialogue WebSocket. A model's
+# advertised TTS maximum does not guarantee complete long-form narration.
+_NARRATION_CHUNK_LIMIT = 800
 _ANNOTATION_MODEL = "gpt-6-luna"
 _ANNOTATION_EFFORT = "medium"
 
@@ -242,7 +244,7 @@ def _model_capabilities(model_id: str) -> ModelCapabilities:
         raise ConfigurationError(f"Unsupported speech model {model_id!r}")
     return ModelCapabilities(
         model_id=model_id,
-        max_characters=_MODEL_LIMIT,
+        max_characters=_NARRATION_CHUNK_LIMIT,
         supported_languages=_LANGUAGES,
         cost_per_1000_characters=rate,
     )

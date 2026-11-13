@@ -292,8 +292,8 @@ def test_sample_uses_default_turbo_and_publishes_only_a_sample_artifact(
 ) -> None:
     input_dir = tmp_path / "chapters"
     input_dir.mkdir()
-    first_text = "A" * 6_000 + ". " + "B" * 6_000 + "."
-    first_chunk = "A" * 6_000 + ". "
+    first_text = "A" * 600 + ". " + "B" * 600 + "."
+    first_chunk = "A" * 600 + ". "
     first = input_dir / "1-first.md"
     second = input_dir / "2-second.md"
     first.write_text(first_text, encoding="utf-8")
@@ -382,7 +382,7 @@ def test_sample_uses_default_turbo_and_publishes_only_a_sample_artifact(
     )
     assert [chunk["text"] for chunk in plan["chunks"]] == [
         first_chunk,
-        "B" * 6_000 + ".",
+        "B" * 600 + ".",
     ]
 
     path = urlsplit(str(received["path"]))
@@ -402,18 +402,19 @@ def test_sample_uses_default_turbo_and_publishes_only_a_sample_artifact(
     assert "test-elevenlabs-key" not in capsys.readouterr().err
 
 
-def test_completed_chapter_is_reused_until_no_cache_requests_a_refresh(
+def test_completed_chapter_reuse_refresh_and_smaller_chunk_budget(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     input_dir = tmp_path / "chapters"
     input_dir.mkdir()
     source = input_dir / "1-reuse.md"
-    original = "The same chapter can be read again."
+    original = "A" * 600 + ". " + "B" * 600 + "."
     source.write_text(original, encoding="utf-8")
     output_dir = tmp_path / "finished"
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+    monkeypatch.setattr("audiobook.application._NARRATION_CHUNK_LIMIT", 1600)
 
     annotations: list[str] = []
     voice_lookups = 0
@@ -493,6 +494,16 @@ def test_completed_chapter_is_reused_until_no_cache_requests_a_refresh(
     assert voice_lookups == 3
     assert third_digest != second_digest
     assert "using cached file" not in third_report
+
+    # A previously completed long request must not hide a new, shorter plan.
+    monkeypatch.setattr("audiobook.application._NARRATION_CHUNK_LIMIT", 800)
+    assert main(arguments) == 0
+    fourth_report = capsys.readouterr().out
+    assert "using completed file" not in fourth_report
+    assert annotations == [original, original]
+    assert len(speech_requests) == 4
+    assert all(len(request["text"]) <= 800 for request in speech_requests[-2:])
+    assert "".join(request["text"] for request in speech_requests[-2:]) == original
     assert "created 1-reuse.mp3" in third_report
 
 
@@ -723,8 +734,8 @@ def test_malformed_cached_pcm_requires_explicit_refresh(
 ) -> None:
     input_dir = tmp_path / "chapters"
     input_dir.mkdir()
-    first_text = "A" * 6_000 + ". "
-    second_text = "B" * 6_000 + "."
+    first_text = "A" * 600 + ". "
+    second_text = "B" * 600 + "."
     source = input_dir / "1-resume.md"
     source.write_text(first_text + second_text, encoding="utf-8")
     output_dir = tmp_path / "finished"
@@ -943,8 +954,8 @@ def test_repeated_run_reuses_the_completed_chunk_after_a_later_rejection(
 ) -> None:
     input_dir = tmp_path / "chapters"
     input_dir.mkdir()
-    first_text = "A" * 6_000 + ". "
-    second_text = "B" * 6_000 + "."
+    first_text = "A" * 600 + ". "
+    second_text = "B" * 600 + "."
     (input_dir / "1-resume.md").write_text(first_text + second_text, encoding="utf-8")
     output_dir = tmp_path / "finished"
     monkeypatch.chdir(tmp_path)

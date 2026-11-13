@@ -6,6 +6,59 @@ from audiobook.contracts import ModelCapabilities, SourceValidationError
 from audiobook.planning import plan_chapter
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("[softly] A sentence. [firmly]\n", "[softly] A sentence. "),
+        ("A sentence. [firmly] [softly]\n", "A sentence. "),
+        ("A sentence. [Appendix]\n", "A sentence. [Appendix]\n"),
+    ],
+)
+def test_terminal_directions_are_omitted_from_submitted_text(text, expected):
+    from audiobook.application import _model_capabilities
+
+    plan = plan_chapter(text, _model_capabilities("eleven_v4_turbo"))
+    assert "".join(c.text for c in plan.chunks) == expected
+    assert plan.submitted_characters == len(expected)
+    assert plan.estimated_cost == Decimal(len(expected)) * Decimal("0.00004")
+
+
+def test_direction_at_paragraph_end_moves_with_following_speech():
+    capabilities = ModelCapabilities(
+        model_id="eleven_v4_turbo",
+        max_characters=28,
+        supported_languages=frozenset({"en"}),
+        cost_per_1000_characters=Decimal("0.04"),
+    )
+    narration = "First paragraph. [softly]\n\nSecond paragraph.\n"
+    plan = plan_chapter(narration, capabilities)
+    assert [c.text for c in plan.chunks] == [
+        "First paragraph. ",
+        "[softly]\n\nSecond paragraph.\n",
+    ]
+    assert "".join(c.text for c in plan.chunks) == narration
+
+
+@pytest.mark.parametrize("model", ["eleven_v4", "eleven_v4_turbo"])
+def test_application_uses_800_character_budget_including_tags(model):
+    from audiobook.application import _model_capabilities
+
+    capabilities = _model_capabilities(model)
+    assert capabilities.max_characters == 800
+    narration = ("[softly] " + "A full sentence. " * 30 + "\n\n") * 8
+    plan = plan_chapter(narration, capabilities)
+    assert len(plan.chunks) > 1
+    assert all(c.character_count <= 800 for c in plan.chunks)
+    assert "".join(c.text for c in plan.chunks) == narration
+
+
+def test_tag_only_narration_is_rejected_before_paid_work():
+    from audiobook.application import _model_capabilities
+
+    with pytest.raises(SourceValidationError, match="no speakable text"):
+        plan_chapter("[softly]\n", _model_capabilities("eleven_v4_turbo"))
+
+
 def test_plan_chapter_keeps_paragraphs_in_order_without_losing_separators() -> None:
     narration = "First paragraph.\n\nSecond paragraph.\n"
     capabilities = ModelCapabilities(

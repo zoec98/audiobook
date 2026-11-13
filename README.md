@@ -139,9 +139,14 @@ Chapters with more than 990 legal anchors use multiple annotation requests,
 each with the full chapter as context, to stay within the schema's enum budget.
 
 Speech is split in order at paragraph boundaries, then sentence boundaries,
-within the verified 10,000-character request limit. A direction stays with the
-passage it directs. Reported character counts include text, tags, and
-whitespace. The current estimate rates are $0.04 per 1,000 characters for
+within a conservative 800-character narration budget. Longer dialogue requests
+can omit speech even when the provider signals completion. A direction stays
+with the following passage; terminal directions with no following speech are
+omitted from synthesis. Source files and cached annotations remain intact.
+Reported character counts include submitted text, tags, and whitespace.
+Changed chunk boundaries prevent reuse of the previous long-chunk chapter
+completion; annotations are still reused without `--no-cache`.
+The current estimate rates are $0.04 per 1,000 characters for
 `eleven_v4_turbo` and $0.08 per 1,000 for `eleven_v4`. These are published
 narration-value estimates, not an account invoice or remaining-credit check;
 subscription allowances and Luna charges are separate.
