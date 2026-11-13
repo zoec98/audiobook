@@ -8,18 +8,19 @@ already captured during story planning, and live probe results.
 
 | Area | Verified contract | Evidence and limits |
 | --- | --- | --- |
-| OpenAI annotation | The exact public model ID is `gpt-6-luna`. Use `POST /v1/responses` with `model: "gpt-6-luna"`, `reasoning: {"effort":"medium"}`, direct text input, and `text.format` set to strict `json_schema`. The model page says Structured Outputs and Responses are supported. | [GPT-6 Luna model reference](https://developers.openai.com/api/docs/models/gpt-6-luna), [Responses create reference](https://developers.openai.com/api/reference/resources/responses/methods/create), [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses). The account was not queried, so this verifies the public contract, not this key's access. |
-| Default speech model | `eleven_v4_turbo` is a documented model ID and uses the Text to Dialogue WebSocket: `wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input`. Set `model_id=eleven_v4_turbo` and `output_format=pcm_24000` in the handshake. The first frame registers the voice; later `inputs` carry text and that voice ID. | [Models reference](https://elevenlabs.io/docs/overview/models/), [Text to Dialogue WebSocket reference](https://elevenlabs.io/docs/api-reference/text-to-dialogue/ttd-websocket). No live handshake or synthesis was made. |
-| Standard v4 speech | `eleven_v4` is documented through the synchronous REST endpoint `POST /v1/text-to-speech/{voice_id}`. Send `text`, `model_id: "eleven_v4"`, and optional `language_code` in JSON; request a format such as `pcm_24000` in the query. The response is the generated audio file. | [Create speech reference](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [ElevenAPI overview and v4 example](https://elevenlabs.io/docs/overview/intro). No live request was made. |
-| Voice lookup | `GET /v2/voices` supports `search`, `voice_ids`, `page_size`, `next_page_token`, and `include_live_moderated=false`. Continue while `has_more` is true and pass the returned token. A voice's `sharing.live_moderation_enabled` field is the eligibility fact to validate. | [List voices reference](https://elevenlabs.io/docs/api-reference/voices/search). The earlier account lookup recorded in [the approved story notes](user-stories.md#notes) found the specified Dahlia voice. It is not a fresh lookup from this ticket. |
-| Supported languages | The v4 family documents 90+ languages and codes. The complete published code list is below. Both REST and Text to Dialogue requests accept `language_code`; the API docs warn that an unsupported code is ignored, so the application must reject unsupported input before synthesis. | [Models and language codes](https://elevenlabs.io/docs/overview/models/), [REST request fields](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [WebSocket query fields](https://elevenlabs.io/docs/api-reference/text-to-dialogue/ttd-websocket). Account-specific model metadata can be read from `GET /v1/models`. |
-| Per-request character limits | Static model documentation lists `eleven_v4` at 10,000 characters. It does not publish a separate `eleven_v4_turbo` limit. `GET /v1/models` supplies `maximum_text_length_per_request` per model; use that field for the authenticated account. | [Character-limit table](https://elevenlabs.io/docs/overview/models/#character-limits), [List models response schema](https://elevenlabs.io/docs/api-reference/models/list). The account-specific value was not retrieved. |
-| Native lossless format | ElevenLabs documents API PCM output at 8, 16, 22.05, and 24 kHz on Free, Starter, and Creator plans; 44.1 kHz PCM is listed for Pro, Scale, and Business. Both relevant API shapes accept an `output_format`; `pcm_24000` is the proposed format. | [Supported audio formats](https://elevenlabs.io/docs/help-center/troubleshooting/what-audio-formats-do-you-support), [REST format parameter](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [WebSocket format parameter](https://elevenlabs.io/docs/api-reference/text-to-dialogue/ttd-websocket). Docs do not specify raw PCM sample width, channel count, or byte order, and this account's entitlement was not checked. |
+| OpenAI annotation | The exact public model ID is `gpt-6-luna`. Use `POST /v1/responses` with `model: "gpt-6-luna"`, `reasoning: {"effort":"medium"}`, direct text input, and `text.format` set to strict `json_schema`. The model page says Structured Outputs and Responses are supported. | [GPT-6 Luna model reference](https://developers.openai.com/api/docs/models/gpt-6-luna), [Responses create reference](https://developers.openai.com/api/reference/resources/responses/methods/create), [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses), [retained account evidence](provider-probes/account-evidence.json). The authenticated `GET /v1/models/gpt-6-luna` returned 200 with the expected ID. No OpenAI generation request was made. |
+| Default speech model | `eleven_v4_turbo` is a documented model ID and uses the Text to Dialogue WebSocket: `wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input`. Set `model_id=eleven_v4_turbo` and `output_format=pcm_24000` in the handshake. The first frame registers the voice; later `inputs` carry text and that voice ID. | [Models reference](https://elevenlabs.io/docs/overview/models/), [Text to Dialogue WebSocket reference](https://elevenlabs.io/docs/api-reference/text-to-dialogue/ttd-websocket), [one-shot probe metadata](provider-probes/eleven_v4_turbo.json). The probe completed and emitted final audio markers. |
+| Standard v4 speech | `eleven_v4` is documented through the synchronous REST endpoint `POST /v1/text-to-speech/{voice_id}`. Send `text`, `model_id: "eleven_v4"`, and optional `language_code` in JSON; request a format such as `pcm_24000` in the query. The response is the generated audio file. | [Create speech reference](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [ElevenAPI overview and v4 example](https://elevenlabs.io/docs/overview/intro), [one-shot probe metadata](provider-probes/eleven_v4.json). The probe returned HTTP 200 with PCM bytes. |
+| Voice lookup | `GET /v2/voices` supports `search`, `voice_ids`, `page_size`, `next_page_token`, and `include_live_moderated=false`. Continue while `has_more` is true and pass the returned token. A voice's `sharing.live_moderation_enabled` field is the eligibility fact to validate. | [List voices reference](https://elevenlabs.io/docs/api-reference/voices/search), [retained account evidence](provider-probes/account-evidence.json). The fresh filtered lookup returned one Dahlia match with moderation disabled and both model IDs in `high_quality_base_model_ids`, consistent with [the approved story notes](user-stories.md#notes). |
+| Supported languages | The v4 family documents 90+ languages and codes. The authenticated model list returned the same 94 language IDs for `eleven_v4` and `eleven_v4_turbo`; it additionally included `ga`, `ny`, and `yo`, which are absent from the static v4 list. Both REST and Text to Dialogue requests accept `language_code`; unsupported codes are ignored by the provider, so the application must reject them before synthesis. | [Static model language list](https://elevenlabs.io/docs/overview/models/), [REST request fields](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [WebSocket query fields](https://elevenlabs.io/docs/api-reference/text-to-dialogue/ttd-websocket), [retained account evidence](provider-probes/account-evidence.json). |
+| Per-request character limits | Static model documentation lists `eleven_v4` at 10,000 characters. The authenticated model list confirmed `maximum_text_length_per_request: 10000` for both models, with `can_do_text_to_speech: true` and `requires_alpha_access: false`. Turbo's limit is no longer unknown for this account. | [Character-limit table](https://elevenlabs.io/docs/overview/models/#character-limits), [List models response schema](https://elevenlabs.io/docs/api-reference/models/list), [retained account evidence](provider-probes/account-evidence.json). |
+| Native lossless format | The account accepted `pcm_24000` for each model. REST returned `audio/pcm`; neither response contained a WAV header. Official docs specify PCM as S16LE at 16-bit depth, and describe `pcm_*` output as mono. A 24 kHz, 16-bit, mono WAV wrapper was derived for listening; sample rate is selected by the request format, and channel count is inferred from the documented mono contract and absence of stereo effects, not reported in the response body. | [PCM S16LE and sample-rate documentation](https://elevenlabs.io/docs/overview/capabilities/text-to-speech), [plan availability](https://elevenlabs.io/docs/help-center/troubleshooting/what-audio-formats-do-you-support), [REST format parameter](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [WebSocket format parameter](https://elevenlabs.io/docs/api-reference/text-to-dialogue/ttd-websocket), [retained probes](provider-probes/). |
 | Published narration rates | v4 Turbo is listed at $0.04 per 1,000 characters; v4 is $0.08 per 1,000 characters. Thus the approved 1,000-character maximum probe for each speech model is within the $0.12 total narration-value cap, before any account-specific allowance. | [ElevenLabs API pricing](https://elevenlabs.io/pricing/api). These are published estimates, not an account invoice or remaining-credit check. |
 
 ## OpenAI request shape
 
-The documented Responses API shape for Luna is:
+The documented Responses API shape for Luna is shown below. It is a request
+template: `schema` must be a JSON Schema object supplied by T-02/T-05.
 
 ```http
 POST https://api.openai.com/v1/responses
@@ -27,7 +28,7 @@ Authorization: Bearer $OPENAI_API_KEY
 Content-Type: application/json
 ```
 
-```json
+```jsonc
 {
   "model": "gpt-6-luna",
   "reasoning": {"effort": "medium"},
@@ -37,13 +38,15 @@ Content-Type: application/json
       "type": "json_schema",
       "name": "chapter_insertions",
       "strict": true,
-      "schema": "<the approved insertion schema>"
+      "schema": {
+        // Exact property schemas are defined by T-02/T-05.
+      }
     }
   }
 }
 ```
 
-The schema above is a placeholder, not a second contract definition; T-02/T-05
+The abbreviated schema above is not a second contract definition; T-02/T-05
 own its exact fields. Consume a completed structured result only after checking
 the response status and refusal/incomplete cases. Schema adherence does not
 validate source anchors or other application rules.
@@ -113,23 +116,26 @@ format metadata. The published format table establishes the sample-rate option
 and its plan availability, but not sample width, channel count, or endianness.
 Do not claim a fully specified WAV layout from the format string alone.
 
-The static limit table gives `eleven_v4` 10,000 submitted characters. For
-`eleven_v4_turbo`, the page identifies the model and transport but omits a
-character limit. The account model list exposes the authoritative
-`maximum_text_length_per_request` field, so the application should obtain and
-validate the selected model's limit instead of assuming the v4 value also
-applies to Turbo. The older per-plan maximum-character fields are marked
-deprecated and not enforced.
+The static limit table gives `eleven_v4` 10,000 submitted characters and omits
+Turbo. The authenticated account model list returned
+`maximum_text_length_per_request=10000` for both selected models. Use that
+field for the selected model at runtime instead of assuming the static v4
+limit applies to Turbo for every account. The older per-plan maximum-character
+fields are marked deprecated and not enforced.
 
-The v4 language-code list published by ElevenLabs is:
+The authenticated `GET /v1/models` returned the same 94 language IDs for both
+selected speech models. That account list includes `ga`, `ny`, and `yo` beyond
+the codes on the static v4 page. The model account response is retained in
+[account-evidence.json](provider-probes/account-evidence.json). Its full code
+list is:
 
 ```text
-af, am, ar, hy, as, ast, az, be, bn, bs, bg, my, yue, ca, ceb, hr, cs, da,
-nl, en, et, fil, fi, fr, ff, gl, ka, de, el, gu, ha, he, hi, hu, is, id,
-it, ja, jv, kam, kn, kk, ko, ky, lo, lv, ln, lt, lg, lb, mk, ms, ml, mt,
-zh, mi, mr, mn, ne, no, oc, or, ps, fa, pl, pt, pa, ro, ru, sr, sn, sd,
-sk, sl, so, ckb, es, sw, sv, tg, ta, te, th, tr, uk, ur, uz, vi, cy, wo,
-zu
+af, am, ar, hy, as, ast, az, be, bn, bs, bg, my, yue, ca, ceb, ny, hr, cs,
+da, nl, en, et, fil, fi, fr, ff, gl, ka, de, el, gu, ha, he, hi, hu, is,
+id, ga, it, ja, jv, kam, kn, kk, ky, ko, lo, lv, ln, lt, lg, lb, mk, ms,
+ml, mt, zh, mi, mr, mn, ne, no, oc, or, ps, fa, pl, pt, pa, ro, ru, sr,
+sn, sd, sk, sl, so, ckb, es, sw, sv, tg, ta, te, th, tr, uk, ur, uz, vi,
+cy, wo, yo, zu
 ```
 
 The overview describes ISO 639-1 codes for most languages and ISO 639-3 codes
@@ -139,30 +145,63 @@ three-letter codes. Use the model catalogue's language IDs for the actual
 selected model; do not infer API behavior for those six codes from the generic
 field description alone.
 
-## Existing account evidence
+## Account evidence and bounded probes
 
-The approved story notes record a read-only `GET /v2/voices` observation from
-2026-11-13: one exact Dahlia match, `Dahlia - Vintage Romantic Hollywood Star`,
-ID `JaagUurP1dmW3WscoJ79`. The record says it was a non-legacy professional
-voice, its `sharing.live_moderation_enabled` value was false, and its
-`high_quality_base_model_ids` included both `eleven_v4` and
-`eleven_v4_turbo`. This evidence supports the approved default and model
-eligibility at that earlier query time. Revalidate the voice before synthesis;
-the catalogue is mutable.
+The approved story notes record the earlier read-only voice query. This ticket
+repeated the filtered `GET /v2/voices` lookup on 2026-11-13 and found one exact
+Dahlia match: `Dahlia - Vintage Romantic Hollywood Star`, ID
+`JaagUurP1dmW3WscoJ79`. The response says it is a non-legacy professional
+voice, `sharing.live_moderation_enabled` is false, and
+`high_quality_base_model_ids` includes `eleven_v4` and `eleven_v4_turbo`.
 
-## Probe status and remaining verification
+The authenticated `GET /v1/models` returned both exact ElevenLabs IDs with
+`can_do_text_to_speech=true`, `requires_alpha_access=false`, and
+`maximum_text_length_per_request=10000`. The returned `model_rates` values were
+`character_cost_multiplier=1` for v4 and `0.5` for Turbo, both with
+`cost_discount_multiplier=1`. The authenticated OpenAI model lookup returned
+200 for `gpt-6-luna`. These GET results establish account access and current
+catalogue metadata; the only OpenAI operation here was the read-only model
+lookup.
 
-No live provider calls were made. `OPENAI_API_KEY` and `ELEVENLABS_API_KEY`
-were absent from the process environment; the checkout `.env` and
-`~/.audiobook.env` were also absent. Therefore the authorized one-probe-per-
-speech-model allowance was not consumed, there is no probe usage to report, and
-no audio artifact is retained. No secrets were requested or printed.
+The same model records set `serves_pro_voices=false`, while the fresh Dahlia
+voice record lists both selected IDs in `high_quality_base_model_ids` and both
+one-shot requests with that professional voice succeeded. The API does not
+explain this field discrepancy. For the approved default, the per-voice model
+IDs and successful responses are the direct eligibility evidence; do not
+reject Dahlia solely from this model-level flag.
 
-The live requirements remain explicitly unverified: current account access to
-Luna and both ElevenLabs speech models; the Turbo account-specific character
-limit; actual 24 kHz PCM acceptance on both speech transports; raw PCM sample
-width, channel count, and byte order; stream completion/error behavior against
-the account; continuity behavior; and a listenable sample. A future authorized
-probe can cover each ElevenLabs speech model once, using no more than 1,000
-non-sensitive submitted characters each and at most $0.12 total published
-narration value. Do not automatically retry an uncertain paid request.
+Exactly one non-sensitive, 113-character narration probe was submitted per
+ElevenLabs model. The same fixture was used for both:
+
+> At dawn, Mara crossed the quiet garden. Dew brightened the leaves, and a small bird sang from the old stone wall.
+
+| Model | Request | Result | Retained raw audio | Published narration value |
+| --- | --- | --- | --- | --- |
+| `eleven_v4_turbo` | One Text to Dialogue WebSocket session, `pcm_24000`, English, Dahlia | 18 audio frames; `is_final_audio_for_turn` and final session signal observed; 376,320 raw bytes; no error frame. The client closed after receiving the final signal; a server-initiated close event was not observed. | [raw PCM](provider-probes/eleven_v4_turbo.pcm), [derived WAV](provider-probes/eleven_v4_turbo.wav), [probe metadata](provider-probes/eleven_v4_turbo.json) | 113 × $0.04/1,000 = $0.00452 |
+| `eleven_v4` | One `POST /v1/text-to-speech/{voice_id}` request, `pcm_24000`, English, Dahlia | HTTP 200; response `Content-Type: audio/pcm`, `Content-Length: 384000`; no RIFF/WAV header; no usage field was returned in the response body. | [raw PCM](provider-probes/eleven_v4.pcm), [derived WAV](provider-probes/eleven_v4.wav), [probe metadata](provider-probes/eleven_v4.json) | 113 × $0.08/1,000 = $0.00904 |
+
+The combined published narration value was $0.01356, below the $0.12 cap.
+This is the public per-character value for the submitted text, not a provider
+usage field or account invoice amount. The REST response exposed only the
+allowlisted content type and length; the WebSocket response exposed chunk and
+completion messages. Neither raw PCM response carried a WAV header or embedded
+sample-rate/channel metadata. The exact PCM bytes and their SHA-256 hashes are
+recorded in the probe metadata; no secrets or authentication headers are
+retained. The compact [account snapshot](provider-probes/account-evidence.json)
+and [probe summary](provider-probes/probe-summary.json) retain the model,
+language, voice, and usage evidence.
+
+Official format docs identify PCM as signed 16-bit little-endian. They also
+describe `pcm_*` outputs as mono and say stereo-producing effects are rejected
+with these formats. Both probes omitted effects. Thus 16-bit S16LE is the
+documented sample encoding; mono is the documented output contract inferred
+for these no-effects requests. The WAV artifacts were wrapped from the raw
+bytes using that contract and inspected with Python's `wave` reader: both are
+24,000 Hz, mono, 16-bit PCM; durations under that layout are 7.84 s for Turbo
+and 8.0 s for v4. Those WAV fields describe the wrapper we produced; they were
+not transmitted as response metadata by ElevenLabs.
+
+No retries were made, and no other paid requests were sent. Live continuity
+quality was not probed: the REST continuity fields are documented, while this
+single WebSocket session exercised one input turn only. T-12's listening check
+can use the retained WAVs; this ticket does not claim a listening result.
