@@ -138,6 +138,22 @@ def test_prepare_chapter_diagnoses_unknown_block_markup_and_keeps_it(
     assert diagnostic.position.character == 1
 
 
+def test_prepare_chapter_treats_common_thematic_breaks_as_silent_separators(
+    tmp_path: Path,
+) -> None:
+    for index, separator in enumerate(("* * *", "---", "___", "  * * *")):
+        source = f"A sentence.\n{separator}\nB follows.\n"
+        chapter = tmp_path / f"{index + 1}-thematic-break.md"
+        chapter.write_bytes(source.encode("utf-8"))
+
+        prepared = prepare_chapter(chapter)
+
+        assert prepared.original_markdown == source
+        assert chapter.read_bytes() == source.encode("utf-8")
+        assert prepared.narration == "A sentence.\n\nB follows.\n"
+        assert prepared.diagnostics == ()
+
+
 def test_prepare_chapter_exposes_only_original_heading_and_sentence_boundaries(
     tmp_path: Path,
 ) -> None:

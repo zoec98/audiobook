@@ -18,7 +18,7 @@ _UNSUPPORTED_LIST_OR_QUOTE = re.compile(r"^ {0,3}(>+|[-*+][ \t]+|\d+[.)][ \t]+)"
 _UNSUPPORTED_HTML = re.compile(r"^ {0,3}(</?[A-Za-z][^>]*>)")
 _UNSUPPORTED_INDENTED_CODE = re.compile(r"^( {4,})(?=\S)")
 _UNSUPPORTED_TABLE = re.compile(r"^ {0,3}(\|)")
-_UNSUPPORTED_RULE = re.compile(
+_THEMATIC_BREAK = re.compile(
     r"^ {0,3}((?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$"
 )
 
@@ -101,6 +101,11 @@ def prepare_chapter(source: Path) -> PreparedChapter:
             narration_lines.append(line)
             source_offset += len(line)
             continue
+        if _THEMATIC_BREAK.fullmatch(content) is not None:
+            if ending:
+                narration_lines.append(ending)
+            source_offset += len(line)
+            continue
         unsupported_offset = _unsupported_block_offset(content)
         if unsupported_offset is not None:
             diagnostics.append(
@@ -171,7 +176,6 @@ def _unsupported_block_offset(content: str) -> int | None:
         _UNSUPPORTED_HTML,
         _UNSUPPORTED_INDENTED_CODE,
         _UNSUPPORTED_TABLE,
-        _UNSUPPORTED_RULE,
     ):
         match = pattern.match(content)
         if match is not None:
@@ -191,6 +195,8 @@ def _leading_front_matter(lines: list[str]) -> tuple[int, bool]:
 
 def _is_italic_caption(text: str) -> bool:
     """Return whether text consists of one single-delimiter italic span."""
+    if _THEMATIC_BREAK.fullmatch(text) is not None:
+        return False
     if len(text) < 3:
         return False
     return text[0] == text[-1] and text[0] in "*_" and text[1] != text[0]
