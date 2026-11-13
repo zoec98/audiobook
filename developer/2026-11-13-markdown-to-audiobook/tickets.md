@@ -541,7 +541,7 @@ merged-result verification as work proceeds.
 | T-03 | in progress (`codex/markdown-to-audiobook-t-03`) | — | — | — |
 | T-04 | waiting for prerequisites | — | — | — |
 | T-05 | waiting for prerequisites | — | — | — |
-| T-06 | ready | — | — | — |
+| T-06 | in progress (`codex/markdown-to-audiobook-t-06`) | — | — | — |
 | T-07 | in progress (`codex/markdown-to-audiobook-t-07`) | — | — | — |
 | T-08 | ready | — | — | — |
 | T-09 | merged | `310a975c302fab27460db528f4c2d0ed3feccc7d` | `1afc8298c31fc0e9c7b7c02e3fd34a5b566e01b8` | Merged shared gates pass; pytest: 27 |
