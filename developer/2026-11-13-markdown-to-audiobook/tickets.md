@@ -3,17 +3,18 @@
 ## Status and scope
 
 - Epic: `markdown-to-audiobook`.
-- Status: complete ticket and verification plan approved on 2026-11-13.
+- Status: approved implementation in progress on 2026-11-13.
 - Approval: the owner said, "Approved. I'll start implementation separately."
   Approval includes the dependency plan, public test seams, and verification
-  requirements. Implementation is deferred to that separate session.
+  requirements used by this implementation session.
 - Source: [approved user stories](user-stories.md), approved on 2026-11-13.
 - Approval recorded in commit: `d26235a0ec63cacf22838f2f1c9be763286c6e45`.
 - Implementation review baseline: `d26235a0ec63cacf22838f2f1c9be763286c6e45`.
-- Planned integration branch: `codex/markdown-to-audiobook`, created after ticket
-  approval from the commit containing the approved plan. The review baseline
-  above remains fixed so the final review covers the whole implementation.
-- No implementation or worktrees have been started for these tickets.
+- Integration branch: `codex/markdown-to-audiobook`, started at
+  `5ff92f81cfa1b64081c90b042888ce38de5fa77f`. The review baseline above remains
+  fixed so the final review covers the whole implementation.
+- T-01 and T-02 are the initial ready tickets and are being implemented in
+  separate worktrees.
 
 ## Dependency map
 
@@ -535,8 +536,8 @@ merged-result verification as work proceeds.
 
 | Ticket | Status | Ticket commit | Merge commit | Verification |
 | --- | --- | --- | --- | --- |
-| T-01 | ready | — | — | — |
-| T-02 | ready | — | — | — |
+| T-01 | in progress (`codex/markdown-to-audiobook-t-01`) | — | — | — |
+| T-02 | in progress (`codex/markdown-to-audiobook-t-02`) | — | — | — |
 | T-03 | waiting for prerequisites | — | — | — |
 | T-04 | waiting for prerequisites | — | — | — |
 | T-05 | waiting for prerequisites | — | — | — |
