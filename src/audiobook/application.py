@@ -31,6 +31,7 @@ from audiobook.contracts import (
     IncompleteAudioError,
     ModelCapabilities,
     PreparedChapter,
+    ProviderError,
     RawAudio,
     RunSettings,
     SourceValidationError,
@@ -460,9 +461,11 @@ def _render_chapter(
                 client=provider,
                 websocket_url=elevenlabs.TURBO_WS_URL,
             )
-        except (IncompleteAudioError, UncertainOperationError):
+        except (IncompleteAudioError, UncertainOperationError) as error:
             _record_uncertain_chunk(item.store, identity)
-            raise
+            raise _with_chunk_context(error, chapter, chunk) from error
+        except ProviderError as error:
+            raise _with_chunk_context(error, chapter, chunk) from error
         try:
             item.store.save_chunk(identity, generated)
         except (AudioError, OSError) as storage_error:
@@ -574,6 +577,17 @@ def _record_uncertain_chunk(store: WorkStore, identity: AudioIdentity) -> None:
             "The synthesis outcome is uncertain and could not be recorded; "
             "do not retry the paid operation blindly."
         ) from storage_error
+
+
+def _with_chunk_context(
+    error: ProviderError, chapter: PreparedChapter, chunk: SpeechChunk
+) -> ProviderError:
+    message = f"{error} (chapter {chapter.source.path.name}, chunk {chunk.index + 1})"
+    if isinstance(error, IncompleteAudioError):
+        return IncompleteAudioError(message, debug_details=error.debug_details)
+    if isinstance(error, UncertainOperationError):
+        return UncertainOperationError(message, debug_details=error.debug_details)
+    return ProviderError(message, debug_details=error.debug_details)
 
 
 def _file_digest(path: Path) -> str:

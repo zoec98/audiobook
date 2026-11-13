@@ -364,6 +364,8 @@ def test_turbo_stream_returns_complete_pcm_from_split_audio_frames() -> None:
         received["messages"] = [
             json.loads(connection.recv(timeout=5)) for _ in range(3)
         ]
+        # Empty audio in a control frame must not invalidate a complete stream.
+        connection.send(json.dumps({"audio": ""}))
         for part in pcm_parts:
             encoded = base64.b64encode(part).decode("ascii")
             connection.send(json.dumps({"audio": encoded}))
@@ -406,6 +408,19 @@ def test_turbo_stream_returns_complete_pcm_from_split_audio_frames() -> None:
     assert audio.format.sample_width_bytes == 2
     assert audio.format.channels == 1
     assert audio.format.encoding == "pcm_s16le"
+
+
+def test_provider_error_details_are_bounded_and_keep_nested_error_fields():
+    from audiobook.elevenlabs import _provider_error_details
+
+    detail = _provider_error_details(
+        {"code": 1008, "error": {"message": "bad\ninput " + "x" * 2000}}
+    )
+    assert detail is not None
+    assert "code=1008" in detail
+    assert "bad input" in detail
+    assert "\n" not in detail
+    assert len(detail) <= 1000
 
 
 def test_turbo_provider_error_is_reported_without_retry() -> None:

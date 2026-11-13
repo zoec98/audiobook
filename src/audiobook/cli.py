@@ -13,6 +13,7 @@ from audiobook.contracts import (
     SUPPORTED_SPEECH_MODELS,
     AudiobookError,
     InputError,
+    ProviderError,
     RunSettings,
 )
 
@@ -113,6 +114,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="refresh cached work and regenerate completed chapter outputs",
     )
+    parser.add_argument(
+        "--debug",
+        "-d",
+        action="store_true",
+        help="show provider response details when a provider request fails",
+    )
     return parser
 
 
@@ -131,6 +138,7 @@ def parse_settings(argv: Sequence[str] | None = None) -> RunSettings:
         dry_run=args.dry_run,
         sample=args.sample,
         no_cache=args.no_cache,
+        debug=args.debug,
         openai_api_key=os.environ.get("OPENAI_API_KEY"),
         elevenlabs_api_key=os.environ.get("ELEVENLABS_API_KEY"),
     )
@@ -163,6 +171,7 @@ def discover_chapters(input_dir: Path) -> tuple[Path, ...]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse the command and run the audiobook workflow."""
+    settings: RunSettings | None = None
     try:
         settings = parse_settings(argv)
         from audiobook.application import run
@@ -170,4 +179,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run(settings)
     except AudiobookError as error:
         print(f"audiobook: error: {error}", file=sys.stderr)
+        if settings is not None and settings.debug and isinstance(error, ProviderError):
+            if error.debug_details:
+                print(
+                    f"audiobook: debug: provider response: {error.debug_details}",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "audiobook: debug: no additional provider response details",
+                    file=sys.stderr,
+                )
         return 1

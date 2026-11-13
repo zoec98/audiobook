@@ -36,6 +36,7 @@ PCM_24000_FORMAT = AudioFormat(
 )
 _VOICE_LOOKUP_ATTEMPTS = 3
 _VOICE_LOOKUP_TIMEOUT_SECONDS = 10.0
+_MAX_PROVIDER_ERROR_DETAIL_LENGTH = 1000
 
 
 def resolve_voice(
@@ -239,9 +240,80 @@ def _post_rest_audio(
         )
     if response.is_error:
         raise ProviderError(
-            f"ElevenLabs v4 rejected the request (HTTP {response.status_code})"
+            f"ElevenLabs v4 rejected the request (HTTP {response.status_code})",
+            debug_details=_provider_error_details(_response_error_payload(response)),
         )
     return response
+
+
+def _response_error_payload(response: httpx.Response) -> object:
+    try:
+        return response.json()
+    except (ValueError, json.JSONDecodeError):
+        return response.text
+
+
+def _provider_error_details(error: object) -> str | None:
+    """Format a bounded, one-line provider error detail for optional debug output."""
+    if isinstance(error, Mapping):
+        nested_error = error.get("error")
+        if isinstance(nested_error, Mapping):
+            combined = dict(nested_error)
+            for name, value in error.items():
+                if name != "error" and name not in combined:
+                    combined[name] = value
+            error = combined
+
+        nested_detail = error.get("detail")
+        if isinstance(nested_detail, Mapping):
+            combined = dict(nested_detail)
+            for name, value in error.items():
+                if name != "detail" and name not in combined:
+                    combined[name] = value
+            error = combined
+
+        if isinstance(error, Mapping):
+            fields = []
+            for name in (
+                "type",
+                "code",
+                "status",
+                "message",
+                "request_id",
+                "param",
+                "detail",
+                "error",
+            ):
+                value = error.get(name)
+                if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                    value_text = str(value).strip()
+                    if value_text:
+                        fields.append(f"{name}={value_text}")
+                elif name in {"detail", "error"} and isinstance(value, (Mapping, list)):
+                    fields.append(
+                        f"{name}={json.dumps(value, ensure_ascii=False, sort_keys=True)}"
+                    )
+            if fields:
+                detail = "; ".join(fields)
+            else:
+                detail = json.dumps(error, ensure_ascii=False, sort_keys=True)
+        else:
+            detail = str(error)
+    elif isinstance(error, str):
+        detail = error
+    else:
+        detail = json.dumps(error, ensure_ascii=False, sort_keys=True)
+
+    detail = " ".join(
+        "".join(
+            character if character.isprintable() else " " for character in detail
+        ).split()
+    )
+    if not detail:
+        return None
+    if len(detail) > _MAX_PROVIDER_ERROR_DETAIL_LENGTH:
+        detail = f"{detail[: _MAX_PROVIDER_ERROR_DETAIL_LENGTH - 3].rstrip()}..."
+    return detail
 
 
 def _synthesize_turbo(
@@ -310,7 +382,8 @@ def _synthesize_turbo(
                     )
                 if "error" in payload:
                     raise ProviderError(
-                        "ElevenLabs Turbo rejected the synthesis request"
+                        "ElevenLabs Turbo rejected the synthesis request",
+                        debug_details=_provider_error_details(payload),
                     )
                 encoded_audio = payload.get("audio")
                 if encoded_audio is not None:
@@ -319,19 +392,20 @@ def _synthesize_turbo(
                             "ElevenLabs Turbo returned malformed audio after "
                             "submission; the paid request outcome is uncertain"
                         )
-                    try:
-                        audio_part = base64.b64decode(encoded_audio, validate=True)
-                    except (binascii.Error, ValueError) as error:
-                        raise UncertainOperationError(
-                            "ElevenLabs Turbo returned malformed audio after "
-                            "submission; the paid request outcome is uncertain"
-                        ) from error
-                    if not audio_part:
-                        raise UncertainOperationError(
-                            "ElevenLabs Turbo returned an empty audio frame after "
-                            "submission; the paid request outcome is uncertain"
-                        )
-                    audio_parts.append(audio_part)
+                    if encoded_audio:
+                        try:
+                            audio_part = base64.b64decode(encoded_audio, validate=True)
+                        except (binascii.Error, ValueError) as error:
+                            raise UncertainOperationError(
+                                "ElevenLabs Turbo returned malformed audio after "
+                                "submission; the paid request outcome is uncertain"
+                            ) from error
+                        if not audio_part:
+                            raise UncertainOperationError(
+                                "ElevenLabs Turbo returned an empty audio frame after "
+                                "submission; the paid request outcome is uncertain"
+                            )
+                        audio_parts.append(audio_part)
 
                 if payload.get("is_final_audio_for_turn") is True:
                     final_audio_for_turn = True

@@ -27,6 +27,10 @@ class SourceValidationError(AudiobookError):
 class ProviderError(AudiobookError):
     """An external provider rejected or failed a request."""
 
+    def __init__(self, message: str, *, debug_details: str | None = None) -> None:
+        super().__init__(message)
+        self.debug_details = debug_details
+
 
 class UncertainOperationError(ProviderError):
     """A paid provider operation may have completed despite a lost response."""
@@ -58,6 +62,7 @@ class RunSettings:
     dry_run: bool
     sample: bool
     no_cache: bool
+    debug: bool = False
     openai_api_key: str | None = field(default=None, repr=False)
     elevenlabs_api_key: str | None = field(default=None, repr=False)
 

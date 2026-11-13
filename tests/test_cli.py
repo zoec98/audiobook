@@ -6,6 +6,20 @@ from audiobook.cli import discover_chapters, main, parse_settings
 from audiobook.contracts import InputError
 
 
+@pytest.mark.parametrize("debug", [False, True])
+def test_provider_details_are_printed_only_in_debug_mode(monkeypatch, capsys, debug):
+    from audiobook.contracts import ProviderError
+
+    def fail(settings):
+        raise ProviderError("request rejected", debug_details="code=input_text_empty")
+
+    monkeypatch.setattr("audiobook.application.run", fail)
+    assert main(["--debug"] if debug else []) == 1
+    error = capsys.readouterr().err
+    assert "request rejected" in error
+    assert ("code=input_text_empty" in error) is debug
+
+
 def test_parse_settings_uses_approved_defaults(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
