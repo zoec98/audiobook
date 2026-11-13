@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import math
+import os
 import struct
 import threading
 from pathlib import Path
@@ -1189,6 +1190,85 @@ def test_failed_no_cache_assembly_preserves_the_previous_completion(
     assert destination.read_bytes() == old_mp3
     assert completion_path.read_bytes() == old_completion
     assert len(list((tmp_path / "audiobook_tmp").glob("**/completion.json"))) == 1
+    assert speech_submissions == [original, original]
+    assert not list(output_dir.glob(".*.pending.mp3"))
+
+
+def test_completion_write_failure_preserves_previous_mp3(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    original = "The previous chapter survives a completion-record failure."
+    (input_dir / "1-transaction.md").write_text(original, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": ["eleven_v4"],
+                        }
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+        speech_submissions.append(json.loads(request.read())["text"])
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=_pcm_tone(230 + 10 * len(speech_submissions)),
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+    destination = output_dir / "1-transaction.mp3"
+
+    assert main(arguments) == 0
+    old_mp3 = destination.read_bytes()
+    completion_path = next((tmp_path / "audiobook_tmp").glob("**/completion.json"))
+    old_completion = completion_path.read_bytes()
+    assert speech_submissions == [original]
+    capsys.readouterr()
+
+    real_replace = os.replace
+
+    def fail_completion_replace(source, target) -> None:
+        if Path(target).name == "completion.json":
+            raise OSError("simulated completion storage failure")
+        real_replace(source, target)
+
+    monkeypatch.setattr(os, "replace", fail_completion_replace)
+
+    exit_code = main([*arguments, "--no-cache"])
+
+    assert exit_code == 1
+    error = capsys.readouterr().err
+    assert "completion" in error.lower()
+    assert destination.read_bytes() == old_mp3
+    assert completion_path.read_bytes() == old_completion
     assert speech_submissions == [original, original]
     assert not list(output_dir.glob(".*.pending.mp3"))
 
