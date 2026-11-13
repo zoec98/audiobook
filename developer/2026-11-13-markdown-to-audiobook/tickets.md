@@ -538,9 +538,9 @@ merged-result verification as work proceeds.
 | --- | --- | --- | --- | --- |
 | T-01 | merged | `9a70275c17996b49b80cc622e27fc080994efeb4`, `4cda3aeef2bf68f7b5d12f338df13d241f88ae7b` | `30dcdcfb581dcd17dd4099bf18d4a4e280caa999` | Account lookups 200; two complete PCM probes (113 chars each, $0.01356); JSON/secret-marker and WAV metadata inspection passed; research ticket, no tests |
 | T-02 | merged | `7281ef7cc14a9b6b057b025d795cf22a89ef6ccb` | `e99a5940352ef512763232358cbd23ab483b8f57` | `uv sync`; format/check, pytest (14), ty, and `audiobook --help` pass on merged result |
-| T-03 | in progress (`codex/markdown-to-audiobook-t-03`) | — | — | — |
-| T-04 | waiting for prerequisites | — | — | — |
-| T-05 | waiting for prerequisites | — | — | — |
+| T-03 | merged | `57d511a8465ffaefe831a7c949d7a78ebbb674fe` | `5eba60f0d11ad18ef5de93ae028f27c1470c2ec9` | Merged shared gates pass; pytest: 43 (16 Markdown) |
+| T-04 | ready | — | — | — |
+| T-05 | in progress (`codex/markdown-to-audiobook-t-05`) | — | — | — |
 | T-06 | in progress (`codex/markdown-to-audiobook-t-06`) | — | — | — |
 | T-07 | in progress (`codex/markdown-to-audiobook-t-07`) | — | — | — |
 | T-08 | ready | — | — | — |
