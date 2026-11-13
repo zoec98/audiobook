@@ -642,7 +642,7 @@ def test_stale_annotation_requires_an_explicit_no_cache_refresh(
     capsys.readouterr()
     source.write_text("The changed chapter is here.", encoding="utf-8")
 
-    assert main(arguments) == 1
+    assert main([*arguments, "--force"]) == 1
     error = capsys.readouterr().err
     assert "--no-cache" in error
     assert annotations == ["The original chapter is here."]
@@ -683,3 +683,570 @@ def test_missing_ffmpeg_is_reported_before_provider_requests(
     assert exit_code == 1
     assert requests == []
     assert "ffmpeg is required" in capsys.readouterr().err
+
+
+def test_malformed_cached_pcm_requires_explicit_refresh(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    first_text = "A" * 6_000 + ". "
+    second_text = "B" * 6_000 + "."
+    source = input_dir / "1-resume.md"
+    source.write_text(first_text + second_text, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    rejected_second_chunk = False
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal rejected_second_chunk
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": ["eleven_v4"],
+                        }
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+
+        body = json.loads(request.read())
+        speech_submissions.append(body["text"])
+        if body["text"] == second_text and not rejected_second_chunk:
+            rejected_second_chunk = True
+            return httpx.Response(400, json={"detail": "invalid request"})
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=_pcm_tone(240),
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+
+    assert main(arguments) == 1
+    capsys.readouterr()
+    assert speech_submissions == [first_text, second_text]
+    assert not (output_dir / "1-resume.mp3").exists()
+    assert not list((tmp_path / "audiobook_tmp").glob("**/completion.json"))
+
+    pcm_paths = list((tmp_path / "audiobook_tmp").glob("**/*.pcm"))
+    assert len(pcm_paths) == 1
+    pcm_paths[0].write_bytes(b"invalid pcm data")
+
+    assert main([*arguments, "--force"]) == 1
+    error = capsys.readouterr().err
+    assert "cached audio" in error.lower()
+    assert "--no-cache" in error
+    assert speech_submissions == [first_text, second_text]
+
+
+def test_uncertain_paid_synthesis_is_not_retried_without_no_cache(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    original = "The provider may have spoken before the response was lost."
+    (input_dir / "1-uncertain.md").write_text(original, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": ["eleven_v4"],
+                        }
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+
+        submitted_text = json.loads(request.read())["text"]
+        speech_submissions.append(submitted_text)
+        if len(speech_submissions) == 1:
+            raise httpx.ReadTimeout("response lost", request=request)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=_pcm_tone(230),
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+
+    assert main(arguments) == 1
+    assert "uncertain" in capsys.readouterr().err.lower()
+    assert speech_submissions == [original]
+    assert not (output_dir / "1-uncertain.mp3").exists()
+
+    assert main(arguments) == 1
+    error = capsys.readouterr().err
+    assert "uncertain" in error.lower()
+    assert "--no-cache" in error
+    assert speech_submissions == [original]
+
+    assert main([*arguments, "--no-cache"]) == 0
+    assert speech_submissions == [original, original]
+    assert (output_dir / "1-uncertain.mp3").is_file()
+
+
+def test_invalid_paid_pcm_is_persisted_as_uncertain_before_a_retry(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    original = "The provider returned an incomplete PCM frame."
+    (input_dir / "1-invalid-pcm.md").write_text(original, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": ["eleven_v4"],
+                        }
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+
+        speech_submissions.append(json.loads(request.read())["text"])
+        response_pcm = b"\x01" if len(speech_submissions) == 1 else _pcm_tone(230)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=response_pcm,
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+
+    assert main(arguments) == 1
+    first_error = capsys.readouterr().err
+    assert "pcm" in first_error.lower()
+    assert speech_submissions == [original]
+
+    assert main(arguments) == 1
+    retry_error = capsys.readouterr().err
+    assert "uncertain" in retry_error.lower()
+    assert "--no-cache" in retry_error
+    assert speech_submissions == [original]
+
+    assert main([*arguments, "--no-cache"]) == 0
+    assert speech_submissions == [original, original]
+    assert (output_dir / "1-invalid-pcm.mp3").is_file()
+
+
+def test_repeated_run_reuses_the_completed_chunk_after_a_later_rejection(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    first_text = "A" * 6_000 + ". "
+    second_text = "B" * 6_000 + "."
+    (input_dir / "1-resume.md").write_text(first_text + second_text, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    rejected_second_chunk = False
+    voice_requests: list[httpx.Request] = []
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal rejected_second_chunk
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            voice_requests.append(request)
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {
+                                "live_moderation_enabled": len(voice_requests) == 2
+                            },
+                            "high_quality_base_model_ids": ["eleven_v4"],
+                        }
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+
+        submitted_text = json.loads(request.read())["text"]
+        speech_submissions.append(submitted_text)
+        if submitted_text == second_text and not rejected_second_chunk:
+            rejected_second_chunk = True
+            return httpx.Response(400, json={"detail": "invalid request"})
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=_pcm_tone(240),
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+
+    assert main(arguments) == 1
+    first_error = capsys.readouterr().err
+    assert "HTTP 400" in first_error
+    assert speech_submissions == [first_text, second_text]
+    assert not (output_dir / "1-resume.mp3").exists()
+    assert not list((tmp_path / "audiobook_tmp").glob("**/completion.json"))
+
+    assert main(arguments) == 1
+    expired_voice_error = capsys.readouterr().err
+    assert "live moderation" in expired_voice_error
+    assert len(voice_requests) == 2
+    assert speech_submissions == [first_text, second_text]
+
+    assert main(arguments) == 0
+    report = capsys.readouterr().out
+    assert len(voice_requests) == 3
+    assert speech_submissions == [first_text, second_text, second_text]
+    assert "using cached audio chunk 1" in report
+    assert (output_dir / "1-resume.mp3").is_file()
+    assert len(list((tmp_path / "audiobook_tmp").glob("**/*.pcm"))) == 2
+    assert len(list((tmp_path / "audiobook_tmp").glob("**/completion.json"))) == 1
+
+
+def test_speed_change_reuses_pcm_but_synthesis_setting_changes_fail_closed(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    original = "The same PCM can be played at a different speed."
+    (input_dir / "1-speed.md").write_text(original, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": [
+                                "eleven_v4",
+                                "eleven_v4_turbo",
+                            ],
+                        },
+                        {
+                            "name": "Alternate Voice",
+                            "voice_id": "voice-alternate",
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": [
+                                "eleven_v4",
+                                "eleven_v4_turbo",
+                            ],
+                        },
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+
+        speech_submissions.append(json.loads(request.read())["text"])
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=_pcm_tone(240),
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+    output = output_dir / "1-speed.mp3"
+
+    assert main(arguments) == 0
+    original_output = hashlib.sha256(output.read_bytes()).hexdigest()
+    assert speech_submissions == [original]
+    capsys.readouterr()
+
+    assert main([*arguments, "--speed", "1.5"]) == 0
+    faster_output = hashlib.sha256(output.read_bytes()).hexdigest()
+    speed_report = capsys.readouterr().out
+    assert faster_output != original_output
+    assert speech_submissions == [original]
+    assert "using cached audio chunk 1" in speed_report
+
+    for changed_settings in (
+        ["--model", "eleven_v4_turbo"],
+        ["--language", "fr"],
+        ["--voice", "Alternate Voice"],
+    ):
+        assert main([*arguments, *changed_settings]) == 1
+        error = capsys.readouterr().err
+        assert "cached audio" in error.lower()
+        assert "--no-cache" in error
+        assert speech_submissions == [original]
+
+
+def test_failed_no_cache_assembly_preserves_the_previous_completion(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    original = "The older chapter stays published if refreshing fails."
+    (input_dir / "1-refresh.md").write_text(original, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    speech_submissions: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "voices": [
+                        {
+                            "name": "Dahlia - Vintage Romantic Hollywood Star",
+                            "voice_id": _DEFAULT_DAHLIA_ID,
+                            "sharing": {"live_moderation_enabled": False},
+                            "high_quality_base_model_ids": ["eleven_v4"],
+                        }
+                    ],
+                    "has_more": False,
+                    "next_page_token": None,
+                },
+            )
+
+        speech_submissions.append(json.loads(request.read())["text"])
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "audio/pcm"},
+            content=_pcm_tone(240),
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "eleven_v4",
+        "--language",
+        "en",
+    ]
+    destination = output_dir / "1-refresh.mp3"
+
+    assert main(arguments) == 0
+    old_mp3 = destination.read_bytes()
+    completion_path = next((tmp_path / "audiobook_tmp").glob("**/completion.json"))
+    old_completion = completion_path.read_bytes()
+    assert speech_submissions == [original]
+    capsys.readouterr()
+
+    fake_bin = tmp_path / "failing-bin"
+    fake_bin.mkdir()
+    fake_ffmpeg = fake_bin / "ffmpeg"
+    fake_ffmpeg.write_text("#!/bin/sh\nprintf 'assembly failed' >&2\nexit 17\n")
+    fake_ffmpeg.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake_bin))
+
+    assert main([*arguments, "--no-cache"]) == 1
+    error = capsys.readouterr().err
+    assert "ffmpeg could not encode" in error
+    assert "assembly failed" in error
+    assert destination.read_bytes() == old_mp3
+    assert completion_path.read_bytes() == old_completion
+    assert len(list((tmp_path / "audiobook_tmp").glob("**/completion.json"))) == 1
+    assert speech_submissions == [original, original]
+    assert not list(output_dir.glob(".*.pending.mp3"))
+
+
+def test_interrupted_turbo_stream_requires_no_cache_before_a_fresh_request(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    input_dir = tmp_path / "chapters"
+    input_dir.mkdir()
+    original = "The stream may stop after sending only part of the chapter."
+    (input_dir / "1-interrupted.md").write_text(original, encoding="utf-8")
+    output_dir = tmp_path / "finished"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(200, json=_completed_annotation())
+        assert request.method == "GET"
+        return httpx.Response(
+            200,
+            json={
+                "voices": [
+                    {
+                        "name": "Dahlia - Vintage Romantic Hollywood Star",
+                        "voice_id": _DEFAULT_DAHLIA_ID,
+                        "sharing": {"live_moderation_enabled": False},
+                        "high_quality_base_model_ids": ["eleven_v4_turbo"],
+                    }
+                ],
+                "has_more": False,
+                "next_page_token": None,
+            },
+        )
+
+    _install_provider_transport(monkeypatch, respond)
+    streams: list[list[dict[str, object]]] = []
+    partial_pcm = _pcm_tone(200)
+    complete_pcm = _pcm_tone(260)
+
+    def peer(connection) -> None:
+        messages = [json.loads(connection.recv(timeout=5)) for _ in range(3)]
+        streams.append(messages)
+        if len(streams) == 1:
+            connection.send(
+                json.dumps({"audio": base64.b64encode(partial_pcm).decode("ascii")})
+            )
+            connection.close()
+            return
+
+        connection.send(
+            json.dumps({"audio": base64.b64encode(complete_pcm).decode("ascii")})
+        )
+        connection.send(json.dumps({"is_final_audio_for_turn": True}))
+        connection.send(json.dumps({"is_final": True}))
+
+    server = serve(peer, "127.0.0.1", 0, compression=None)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = server.socket.getsockname()[1]
+    monkeypatch.setattr(elevenlabs, "TURBO_WS_URL", f"ws://127.0.0.1:{port}")
+    arguments = [
+        "--input-dir",
+        str(input_dir),
+        "--output-dir",
+        str(output_dir),
+        "--language",
+        "en",
+    ]
+    try:
+        assert main(arguments) == 1
+        first_error = capsys.readouterr().err
+        assert (
+            "incomplete audio" in first_error.lower()
+            or "uncertain" in first_error.lower()
+        )
+        assert len(streams) == 1
+        assert not (output_dir / "1-interrupted.mp3").exists()
+
+        assert main(arguments) == 1
+        retry_error = capsys.readouterr().err
+        assert "uncertain" in retry_error.lower()
+        assert "--no-cache" in retry_error
+        assert len(streams) == 1
+
+        assert main([*arguments, "--no-cache"]) == 0
+        assert len(streams) == 2
+        assert (output_dir / "1-interrupted.mp3").is_file()
+        assert len(list((tmp_path / "audiobook_tmp").glob("**/*.pcm"))) == 1
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)

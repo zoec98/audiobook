@@ -28,12 +28,14 @@ from audiobook.contracts import (
     ChunkPlan,
     ConfigurationError,
     FinalOutputIdentity,
+    IncompleteAudioError,
     ModelCapabilities,
     PreparedChapter,
     RawAudio,
     RunSettings,
     SourceValidationError,
     SpeechChunk,
+    UncertainOperationError,
 )
 from audiobook.language import choose_language
 from audiobook.markdown import prepare_chapter
@@ -408,17 +410,57 @@ def _render_chapter(
                 f"for {chapter.source.path.name}"
             )
             continue
+        if cached is not None and cached.state in {"stale", "incomplete"}:
+            reason = cached.reason or "the cached audio is incompatible"
+            raise ConfigurationError(
+                f"Cannot use cached audio chunk {chunk.index + 1} for "
+                f"{chapter.source.path.name}: {reason}. "
+                "Run with --no-cache to refresh it."
+            )
 
-        generated = elevenlabs.synthesize_chunk(
-            chunk.text,
-            voice_id,
-            settings.model,
-            language,
-            api_key,
-            client=provider,
-            websocket_url=elevenlabs.TURBO_WS_URL,
-        )
-        item.store.save_chunk(identity, generated)
+        if not settings.no_cache:
+            uncertain = item.store.load_uncertain_chunk(identity)
+            if uncertain.state == "valid":
+                raise UncertainOperationError(
+                    f"The previous synthesis outcome for chunk {chunk.index + 1} "
+                    f"of {chapter.source.path.name} is uncertain and may have been "
+                    "charged. Do not retry it automatically; use --no-cache for an "
+                    "explicit fresh operation."
+                )
+            if uncertain.state in {"stale", "incomplete"}:
+                reason = uncertain.reason or "the uncertain-operation record is invalid"
+                raise ConfigurationError(
+                    f"Cannot safely resume chunk {chunk.index + 1} for "
+                    f"{chapter.source.path.name}: {reason}. "
+                    "Run with --no-cache to start a fresh operation."
+                )
+
+        try:
+            generated = elevenlabs.synthesize_chunk(
+                chunk.text,
+                voice_id,
+                settings.model,
+                language,
+                api_key,
+                client=provider,
+                websocket_url=elevenlabs.TURBO_WS_URL,
+            )
+        except (IncompleteAudioError, UncertainOperationError):
+            _record_uncertain_chunk(item.store, identity)
+            raise
+        try:
+            item.store.save_chunk(identity, generated)
+        except (AudioError, OSError) as storage_error:
+            _record_uncertain_chunk(item.store, identity)
+            raise UncertainOperationError(
+                "ElevenLabs returned PCM that could not be validated or stored; "
+                "the paid result is uncertain. Run with --no-cache for a fresh "
+                "operation."
+            ) from storage_error
+        try:
+            item.store.clear_uncertain_chunk(identity)
+        except OSError:
+            pass
         raw_chunks.append(generated)
 
     if not raw_chunks:
@@ -474,6 +516,16 @@ def _generation_settings_digest() -> str:
         {"output_format": "pcm_24000"}, sort_keys=True, separators=(",", ":")
     )
     return hashlib.sha256(settings.encode("utf-8")).hexdigest()
+
+
+def _record_uncertain_chunk(store: WorkStore, identity: AudioIdentity) -> None:
+    try:
+        store.save_uncertain_chunk(identity)
+    except OSError as storage_error:
+        raise UncertainOperationError(
+            "The synthesis outcome is uncertain and could not be recorded; "
+            "do not retry the paid operation blindly."
+        ) from storage_error
 
 
 def _file_digest(path: Path) -> str:

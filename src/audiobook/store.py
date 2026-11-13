@@ -192,6 +192,61 @@ class WorkStore:
             if isinstance(old_name, str) and Path(old_name).name == old_name:
                 (record_path.parent / old_name).unlink(missing_ok=True)
 
+    def load_uncertain_chunk(self, identity: AudioIdentity) -> ArtifactResult[bool]:
+        """Report whether a paid chunk request may have completed without audio."""
+        document = _read_document(
+            _uncertainty_record_path(identity, self._source_directory)
+        )
+        if document is None:
+            return ArtifactResult(state="absent")
+        if document is _UNREADABLE or not isinstance(document, dict):
+            return ArtifactResult(
+                state="incomplete", reason="Uncertain-operation record is malformed"
+            )
+        version = document.get("version")
+        if not isinstance(version, int) or isinstance(version, bool):
+            return ArtifactResult(
+                state="incomplete",
+                reason="Uncertain-operation record version is malformed",
+            )
+        if version != _FORMAT_VERSION:
+            return ArtifactResult(
+                state="stale",
+                reason="Uncertain-operation record version is incompatible",
+            )
+        try:
+            stored_identity = _audio_identity_from(document["identity"])
+        except (KeyError, TypeError, ValueError):
+            return ArtifactResult(
+                state="incomplete", reason="Uncertain-operation identity is malformed"
+            )
+        if stored_identity != identity:
+            return ArtifactResult(
+                state="incomplete", reason="Uncertain-operation identity does not match"
+            )
+        if document.get("status") != "uncertain":
+            return ArtifactResult(
+                state="incomplete", reason="Uncertain-operation status is malformed"
+            )
+        return ArtifactResult(state="valid", value=True)
+
+    def save_uncertain_chunk(self, identity: AudioIdentity) -> None:
+        """Atomically remember that a paid synthesis result may be missing."""
+        document = {
+            "version": _FORMAT_VERSION,
+            "identity": _audio_identity_to(identity),
+            "status": "uncertain",
+        }
+        _atomic_write_json(
+            _uncertainty_record_path(identity, self._source_directory), document
+        )
+
+    def clear_uncertain_chunk(self, identity: AudioIdentity) -> None:
+        """Clear uncertainty after a compatible complete chunk is available."""
+        _uncertainty_record_path(identity, self._source_directory).unlink(
+            missing_ok=True
+        )
+
     def load_completion(
         self, identity: FinalOutputIdentity
     ) -> ArtifactResult[ChapterCompletion]:
@@ -424,6 +479,14 @@ def _valid_audio(audio: RawAudio) -> bool:
 
 def _chunk_record_path(identity: AudioIdentity, source_directory: Path) -> Path:
     return source_directory / "chunks" / f"{identity.submitted_text_sha256}.json"
+
+
+def _uncertainty_record_path(identity: AudioIdentity, source_directory: Path) -> Path:
+    encoded = json.dumps(
+        _audio_identity_to(identity), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    digest = hashlib.sha256(encoded).hexdigest()
+    return source_directory / "uncertain" / f"{digest}.json"
 
 
 def _annotated_chapter_to(chapter: AnnotatedChapter) -> dict[str, Any]:
