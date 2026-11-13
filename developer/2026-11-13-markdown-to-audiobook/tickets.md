@@ -542,7 +542,7 @@ merged-result verification as work proceeds.
 | T-04 | waiting for prerequisites | — | — | — |
 | T-05 | waiting for prerequisites | — | — | — |
 | T-06 | ready | — | — | — |
-| T-07 | ready | — | — | — |
+| T-07 | in progress (`codex/markdown-to-audiobook-t-07`) | — | — | — |
 | T-08 | ready | — | — | — |
 | T-09 | in progress (`codex/markdown-to-audiobook-t-09`) | — | — | — |
 | T-10 | waiting for prerequisites | — | — | — |
