@@ -540,7 +540,7 @@ merged-result verification as work proceeds.
 | T-02 | merged | `7281ef7cc14a9b6b057b025d795cf22a89ef6ccb` | `e99a5940352ef512763232358cbd23ab483b8f57` | `uv sync`; format/check, pytest (14), ty, and `audiobook --help` pass on merged result |
 | T-03 | merged | `57d511a8465ffaefe831a7c949d7a78ebbb674fe` | `5eba60f0d11ad18ef5de93ae028f27c1470c2ec9` | Merged shared gates pass; pytest: 43 (16 Markdown) |
 | T-04 | ready | — | — | — |
-| T-05 | in progress (`codex/markdown-to-audiobook-t-05`) | — | — | — |
+| T-05 | merged | `7169dd80baeb75369737d0522840e5799e668f2a` | `2a58cd1490dfdc8224e8711c96481653ea9e642a` | Merged shared gates pass; pytest: 79; no live provider call |
 | T-06 | merged | `87a6fa24885c812684b7d7bbb39510b6a5456c21` | `23ce5b8d93e449aac8a6587c02989b243b4c534c` | Merged shared gates pass; pytest: 66 |
 | T-07 | merged | `edcd3ac65947621d984f523e8d0ef855f9749b14` | `385141d2d995fc5bb848d6099fdffbb2e9929b7e` | Merged shared gates pass; pytest: 59 (15 ElevenLabs, loopback peers) |
 | T-08 | ready | — | — | — |
